@@ -1,3 +1,4 @@
+const fs = require("fs");
 const {
   addInventoryItemDB,
   getInventoryItemsDB,
@@ -7,7 +8,105 @@ const {
   getInventoryLogsDB,
   getCummulativeInventoryMovementsDB,
   getInventoryUsageVsCurrentStockDB,
+  bulkAddInventoryItemsDB,
 } = require("../services/inventory.service");
+const papaparse = require("papaparse");
+const xlsx = require("xlsx");
+
+exports.bulkAddInventoryItems = async (req, res) => {
+  try {
+    const tenantId = req.user.tenant_id;
+    const username = req.user.username;
+
+    if (!req.files || !req.files.csv) {
+      return res.status(400).json({
+        success: false,
+        message: req.__("no_csv_file_uploaded"),
+      });
+    }
+
+    const file = req.files.csv;
+    
+    if (file.mimetype === "text/csv") {
+      return new Promise((resolve, reject) => {
+        const stream = fs.createReadStream(file.tempFilePath);
+        papaparse.parse(stream, {
+          header: true,
+          skipEmptyLines: true,
+          bom: true,
+          transformHeader: header => header.toLowerCase().trim().replace(/ /g, '_'),
+          complete: async (results) => {
+            try {
+              const processedCount = await bulkAddInventoryItemsDB(results.data, tenantId, username);
+              res.status(200).json({
+                success: true,
+                message: `${processedCount} items added successfully.`,
+              });
+              resolve();
+            } catch (error) {
+              console.error(error);
+              res.status(500).json({
+                success: false,
+                message: error.message || req.__("something_went_wrong_try_later"),
+              });
+              reject(error);
+            }
+          },
+          error: (error) => {
+            console.error(error);
+            res.status(400).json({
+              success: false,
+              message: req.__("error_parsing_csv"),
+            });
+            reject(error);
+          },
+        });
+      });
+    } else if (
+      file.mimetype ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ) {
+      const workbook = xlsx.readFile(file.tempFilePath);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = xlsx.utils.sheet_to_json(worksheet);
+      
+      const dataToInsert = jsonData.map(row => {
+        const newRow = {};
+        for (const key in row) {
+          const newKey = key.toLowerCase().trim().replace(/ /g, '_');
+          newRow[newKey] = row[key];
+        }
+        return newRow;
+      });
+
+      try {
+        const processedCount = await bulkAddInventoryItemsDB(dataToInsert, tenantId, username);
+        return res.status(200).json({
+          success: true,
+          message: `${processedCount} items added successfully.`,
+        });
+      } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+          success: false,
+          message: error.message || req.__("something_went_wrong_try_later"),
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: req.__("unsupported_file_type"),
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || req.__("something_went_wrong_try_later"),
+    });
+  }
+};
 
 exports.addInventoryItem = async (req, res) => {
   try {
@@ -52,6 +151,7 @@ exports.addInventoryItem = async (req, res) => {
 
 exports.getInventoryItems = async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const tenantId = req.user.tenant_id;
     const status = req.query.status || null;
     const {items, statusCounts} = await getInventoryItemsDB(status, tenantId);

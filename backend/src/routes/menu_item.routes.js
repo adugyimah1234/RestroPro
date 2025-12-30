@@ -30,9 +30,19 @@ const {
   getRecipeItems,
   deleteRecipeItem,
   updateRecipeItem,
+  bulkUploadMenuItems,
 } = require("../controllers/menu_item.controller");
 
 const router = Router();
+
+router.post(
+  "/bulk-upload",
+  isLoggedIn,
+  isAuthenticated,
+  isSubscriptionActive,
+  authorize([SCOPES.SETTINGS]),
+  bulkUploadMenuItems
+);
 
 router.post(
   "/add",

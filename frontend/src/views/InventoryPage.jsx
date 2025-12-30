@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import Page from "../components/Page";
-import { IconAlertTriangle, IconBox, IconCarrot, IconCategory2,IconCircleMinus, IconDotsVertical, IconLogs, IconPencil, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBox, IconCarrot, IconCategory2,IconCircleMinus, IconDotsVertical, IconLogs, IconPencil, IconPlus, IconSearch, IconTrash, IconX, IconUpload } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
 import { iconStroke } from "../config/config";
-import { addInventoryItem, addInventoryItemStockMovement, deleteInventoryItem, updateInventoryItem, useInventoryItems } from "../controllers/inventory.controller";
+import { addInventoryItem, addInventoryItemStockMovement, deleteInventoryItem, updateInventoryItem, useInventoryItems, bulkAddInventoryItems } from "../controllers/inventory.controller";
 import toast from "react-hot-toast";
 import moment from "moment";
-import { mutate } from "swr";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../contexts/ThemeContext";
@@ -54,7 +53,9 @@ export default function InventoryPage() {
   const addStockMovementQuantityRef = useRef(null);
   const addStockMovementNoteRef = useRef(null);
 
-  const { APIURL, data, error, isLoading } = useInventoryItems({
+  const [bulkFile, setBulkFile] = useState(null);
+
+  const { APIURL, data, error, isLoading, mutate } = useInventoryItems({
     status: selectedStatus
   });
 
@@ -75,6 +76,52 @@ export default function InventoryPage() {
   if (error) {
     return <Page>{t('inventory.error_loading_text')}</Page>;
   }
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const allowedTypes = [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ];
+      if (allowedTypes.includes(file.type)) {
+        setBulkFile(file);
+      } else {
+        toast.error(
+          "Unsupported file type. Please upload a .csv or .xlsx file."
+        );
+        setBulkFile(null);
+        e.target.value = null; // Reset the file input
+      }
+    }
+  };
+
+  const handleBulkAdd = async () => {
+    if (!bulkFile) {
+      toast.error(t("inventory.toast_select_csv"));
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("csv", bulkFile);
+
+    try {
+      const res = await bulkAddInventoryItems(formData);
+      if (res.status === 200) {
+        toast.dismiss();
+        toast.success(res.data.message);
+        setBulkFile(null);
+        document.getElementById("modal-bulk-add-inventory-item").close();
+        await mutate();
+      }
+    } catch (error) {
+      const message =
+        error?.response?.data?.message || t("inventory.toast_default_error");
+      console.error(error);
+      toast.dismiss();
+      toast.error(message);
+    }
+  };
 
   const handleAddInventoryItem = async () => {
     const title = titleRef.current?.value.trim();
@@ -122,7 +169,7 @@ export default function InventoryPage() {
 
         document.getElementById('modal-add-inventory-item').close();
 
-        await mutate(APIURL);
+        await mutate();
       }
     } catch (error) {
       const message = error?.response?.data?.message || t('inventory.toast_default_error');
@@ -131,7 +178,6 @@ export default function InventoryPage() {
       toast.error(message);
     }
   };
-
   const handleUpdateInventoryItem = async () => {
     const title = updateTitleRef.current?.value.trim();
     const quantity = parseFloat(updateQuantityRef.current?.value || 0);
@@ -183,7 +229,7 @@ export default function InventoryPage() {
 
         document.getElementById('modal-update-inventory-item').close();
 
-        await mutate(APIURL);
+        await mutate();
       }
     } catch (error) {
       const message = error?.response?.data?.message || t('inventory.toast_default_error');
@@ -212,7 +258,7 @@ export default function InventoryPage() {
 
         document.getElementById('modal-delete-inventory-item').close();
 
-        await mutate(APIURL);
+        await mutate();
       }
     } catch (error) {
       const message = error?.response?.data?.message || t('inventory.toast_default_error');
@@ -223,46 +269,38 @@ export default function InventoryPage() {
   };
 
   const handleAddItemStockMovement = async () => {
-    const movementType = addStockMovementTypeRef.current?.value || null;
-    const itemId = addStockMovementItemIdRef.current?.value || null;
-    const quantity = parseFloat(addStockMovementQuantityRef.current?.value || "0");
-    const note = addStockMovementNoteRef.current?.value?.trim();
+    const type = addStockMovementTypeRef.current?.value;
+    const inventory_item_id = addStockMovementItemIdRef.current?.value;
+    const quantity = parseFloat(addStockMovementQuantityRef.current?.value || 0);
+    const note = addStockMovementNoteRef.current?.value.trim();
 
-    if(!itemId){
+    if (!inventory_item_id) {
       toast.error(t('inventory.toast_invalid_request'));
       return;
     }
-
-    if(!movementType){
-      toast.error(t('inventory.toast_select_movement_type'));
-      return;
-    }
-
-    if (isNaN(quantity) || quantity <= 0) {
-      toast.error(t('inventory.toast_invalid_quantity'));
+    if (!quantity || quantity <= 0) {
+      toast.error(t('inventory.toast_quantity_positive_required'));
       return;
     }
 
     try {
       const res = await addInventoryItemStockMovement({
-        id: itemId,
-        movementType,
+        inventory_item_id,
+        type,
         quantity,
-        note
+        note,
       });
 
       if (res.status === 200) {
         toast.dismiss();
         toast.success(res.data.message);
 
-        addStockMovementTypeRef.current.value = 'IN'
-        addStockMovementItemIdRef?.current.value == null;
         addStockMovementQuantityRef.current.value = "";
         addStockMovementNoteRef.current.value = "";
 
-        document.getElementById("modal-add-inventory-stock-movement")?.close();
+        document.getElementById('modal-add-inventory-stock-movement').close();
 
-        await mutate(APIURL);
+        await mutate();
       }
     } catch (error) {
       const message = error?.response?.data?.message || t('inventory.toast_default_error');
@@ -272,7 +310,7 @@ export default function InventoryPage() {
     }
   };
 
-  return (
+    return (
     <Page>
       <div className="flex flex-wrap gap-4 flex-col md:flex-row items-center justify-between">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -309,6 +347,15 @@ export default function InventoryPage() {
           }}  className = "text-sm rounded-lg border transition active:scale-95 hover:shadow-lg px-2 py-1 flex items-center gap-1 text-restro-text bg-restro-gray border-restro-border-green hover:bg-restro-button-hover">
             <IconPlus size={18} stroke={iconStroke}/>
             {t('inventory.add_stock_item')}
+          </button>
+          <button
+            onClick={() => {
+              document.getElementById("modal-bulk-add-inventory-item").showModal();
+            }}
+            className="text-sm rounded-lg border transition active:scale-95 hover:shadow-lg px-2 py-1 flex items-center gap-1 text-restro-text bg-restro-gray border-restro-border-green hover:bg-restro-button-hover"
+          >
+            <IconUpload size={18} stroke={iconStroke} />
+            {t("inventory.bulk_add")}
           </button>
           <Link
             to="stock-movements"
@@ -503,6 +550,59 @@ export default function InventoryPage() {
           </tbody>
         </table>)}
       </div>
+      {/* dialog: bulk add stock items */}
+      <dialog id="modal-bulk-add-inventory-item" className="modal modal-bottom sm:modal-middle">
+        <div className="modal-box border border-restro-border-green dark:rounded-2xl">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-lg">{t("inventory.modal_bulk_add_title")}</h3>
+            <button
+              className="text-red-500 p-2 rounded-full bg-restro-bg-gray hover:bg-restro-button-hover"
+              onClick={() => document.getElementById("modal-bulk-add-inventory-item").close()}
+            >
+              <IconX size={18} stroke={iconStroke} />
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-sm text-gray-500">
+              {t("inventory.modal_bulk_add_description")}
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-500">
+              <li>{t("inventory.csv_column_title")}</li>
+              <li>{t("inventory.csv_column_quantity")}</li>
+              <li>{t("inventory.csv_column_unit")}</li>
+              <li>{t("inventory.csv_column_min_quantity")}</li>
+            </ul>
+            <a href="/inventory_template.csv" download className="text-sm text-restro-green hover:underline">
+              {t("inventory.download_template")}
+            </a>
+          </div>
+
+          <div className="mt-4">
+            <label htmlFor="csv_file" className="mb-1 block text-gray-500 text-sm">
+              {t("inventory.form_csv_file_label")}
+            </label>
+            <input
+              type="file"
+              accept=".csv, .xlsx"
+              onChange={handleFileChange}
+              className="text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green"
+            />
+          </div>
+
+          <div className="modal-action w-full">
+            <form method="dialog" className="w-full">
+              <button
+                type="button"
+                onClick={handleBulkAdd}
+                className="flex justify-center w-full rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover"
+              >
+                {t("inventory.form_upload_button")}
+              </button>
+            </form>
+          </div>
+        </div>
+      </dialog>
       {/* dialog: add stock items */}    
       <dialog id="modal-add-inventory-item" className="modal modal-bottom sm:modal-middle">
         <div className='modal-box border border-restro-border-green dark:rounded-2xl'>
@@ -698,3 +798,4 @@ export default function InventoryPage() {
     </Page>
   );
 }
+

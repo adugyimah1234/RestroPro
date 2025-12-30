@@ -3,22 +3,34 @@ import useSWR from "swr";
 
 const fetcher = (url) => ApiClient.get(url).then((res) => res.data);
 
-export function useInventoryItems({status}) {
+export function useInventoryItems({ status }) {
   const APIURL = `/inventory?status=${status}`;
-  const { data, error, isLoading } = useSWR(APIURL, fetcher);
+  const { data, error, isLoading, mutate } = useSWR(APIURL, fetcher);
   return {
     data,
     error,
     isLoading,
     APIURL,
+    mutate,
   };
 }
 
-export async function addInventoryItem({title, quantity, unit, min_quantity_threshold}) {
+export async function bulkAddInventoryItems(formData) {
   try {
-    const response = await ApiClient.post(`/inventory/add-item`, {
-      title, quantity, unit, min_quantity_threshold
+    const response = await ApiClient.post("/inventory/bulk-add-items", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
     });
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function addInventoryItem(item) {
+  try {
+    const response = await ApiClient.post("/inventory/add-item", item);
     return response;
   } catch (error) {
     throw error;

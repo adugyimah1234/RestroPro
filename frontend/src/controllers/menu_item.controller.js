@@ -211,3 +211,16 @@ export async function deleteRecipeItem(id, recipeItemId, recipeItemVariantId, re
     throw error;
   }
 }
+
+export async function uploadBulkMenuItems(formData) {
+  try {
+    const response = await ApiClient.post("/menu-items/bulk-upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}

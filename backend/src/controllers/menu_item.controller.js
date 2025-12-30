@@ -1,7 +1,8 @@
-const { addMenuItemDB, updateMenuItemDB, deleteMenuItemDB, addMenuItemAddonDB, updateMenuItemAddonDB, deleteMenuItemAddonDB, getMenuItemAddonsDB, getAllAddonsDB, addMenuItemVariantDB, updateMenuItemVariantDB, deleteMenuItemVariantDB, getMenuItemVariantsDB, getAllVariantsDB, getAllMenuItemsDB, getMenuItemDB, updateMenuItemImageDB, changeMenuItemVisibilityDB, getRecipeItemsDB, addRecipeItemDB, deleteRecipeItemDB, updateRecipeItemDB } = require("../services/menu_item.service");
+const { addMenuItemDB, updateMenuItemDB, deleteMenuItemDB, addMenuItemAddonDB, updateMenuItemAddonDB, deleteMenuItemAddonDB, getMenuItemAddonsDB, getAllAddonsDB, addMenuItemVariantDB, updateMenuItemVariantDB, deleteMenuItemVariantDB, getMenuItemVariantsDB, getAllVariantsDB, getAllMenuItemsDB, getMenuItemDB, updateMenuItemImageDB, changeMenuItemVisibilityDB, getRecipeItemsDB, addRecipeItemDB, deleteRecipeItemDB, updateRecipeItemDB, bulkAddMenuItemsDB } = require("../services/menu_item.service");
 
 const path = require("path")
 const fs = require("fs");
+const Papa = require("papaparse");
 const { getInventoryItemsDB } = require("../services/inventory.service");
 
 exports.addMenuItem = async (req, res) => {
@@ -582,3 +583,100 @@ exports.addRecipeItem = async (req, res) => {
 };
 
 /** Recipes*/
+
+exports.bulkUploadMenuItems = async (req, res) => {
+    try {
+        const tenantId = req.user.tenant_id;
+
+        if (!req.files || Object.keys(req.files).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("no_files_uploaded")
+            });
+        }
+
+        const file = req.files.file; // Assuming the file input name is 'file'
+
+        if (file.mimetype !== 'text/csv') {
+            return res.status(400).json({
+                success: false,
+                message: req.__("only_csv_files_allowed")
+            });
+        }
+
+        const csvString = file.data.toString('utf8');
+
+        Papa.parse(csvString, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                const menuItemsToInsert = [];
+                const errors = [];
+
+                for (const [index, row] of results.data.entries()) {
+                    const lineNumber = index + 2; // +1 for header, +1 for 0-based index
+
+                    const title = row.title;
+                    const description = row.description || null;
+                    const price = parseFloat(row.price);
+                    const netPrice = parseFloat(row.net_price);
+                    const taxId = row.tax_id ? parseInt(row.tax_id) : null;
+                    const categoryId = row.category_id ? parseInt(row.category_id) : null;
+
+                    if (!title || isNaN(price) || isNaN(netPrice)) {
+                        errors.push({
+                            line: lineNumber,
+                            message: req.__("menu_item_bulk_upload_missing_required_fields")
+                        });
+                        continue;
+                    }
+
+                    menuItemsToInsert.push({
+                        title,
+                        description,
+                        price,
+                        netPrice,
+                        taxId,
+                        categoryId,
+                        tenantId
+                    });
+                }
+
+                if (menuItemsToInsert.length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: req.__("no_valid_menu_items_found_in_file"),
+                        errors: errors
+                    });
+                }
+
+                try {
+                    const insertedCount = await bulkAddMenuItemsDB(menuItemsToInsert);
+                    return res.status(200).json({
+                        success: true,
+                        message: req.__("menu_items_bulk_uploaded_successfully", { count: insertedCount }),
+                        errors: errors
+                    });
+                } catch (dbError) {
+                    console.error("Database error during bulk upload:", dbError);
+                    errors.push({
+                        line: "N/A",
+                        message: req.__("database_error_during_bulk_upload")
+                    });
+                    return res.status(500).json({
+                        success: false,
+                        message: req.__("something_went_wrong_try_later"),
+                        errors: errors
+                    });
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: req.__("something_went_wrong_try_later") // Translate message
+        });
+    }
+};

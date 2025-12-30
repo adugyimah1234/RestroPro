@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import Page from "../../components/Page";
-import { IconCarrot, IconEye, IconEyeOff, IconPencil, IconPlus, IconToggleLeft, IconTrash } from "@tabler/icons-react";
+import { IconCarrot, IconEye, IconEyeOff, IconPencil, IconPlus, IconTableImport, IconToggleLeft, IconTrash } from "@tabler/icons-react";
 import { iconStroke } from "../../config/config";
 import { useCategories, useTaxes } from "../../controllers/settings.controller";
 import toast from "react-hot-toast";
@@ -145,6 +145,12 @@ export default function MenuItemsSettingsPage() {
          className='rounded-lg border transition active:scale-95 hover:shadow-lg px-3 py-1 flex items-center gap-1 mr-4 w-fit text-restro-text bg-restro-gray border-restro-border-green hover:bg-restro-button-hover'
         >
           {t('menu_items.categories')}
+        </Link>
+        <Link
+          to="import"
+         className='rounded-lg border transition active:scale-95 hover:shadow-lg px-3 py-1 flex items-center gap-1 mr-4 w-fit text-restro-text bg-restro-gray border-restro-border-green hover:bg-restro-button-hover'
+        >
+          <IconTableImport stroke={iconStroke} size={22} /> {t('menu_items.bulk_upload')}
         </Link>
       </div>
 

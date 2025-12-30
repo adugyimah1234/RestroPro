@@ -555,3 +555,37 @@ exports.deleteRecipeItemDB = async (itemId, recipeItemId, variant, addon, tenant
         conn.release();
     }
 };
+
+exports.bulkAddMenuItemsDB = async (menuItems) => {
+    const conn = await getMySqlPromiseConnection();
+    try {
+        if (!menuItems || menuItems.length === 0) {
+            return 0;
+        }
+
+        const placeholders = menuItems.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ');
+        const values = menuItems.flatMap(item => [
+            item.title,
+            item.description,
+            item.price,
+            item.netPrice,
+            item.taxId,
+            item.categoryId,
+            item.tenantId
+        ]);
+
+        const sql = `
+        INSERT INTO menu_items
+        (title, description, price, net_price, tax_id, category, tenant_id)
+        VALUES ${placeholders};
+        `;
+
+        const [result] = await conn.query(sql, values);
+        return result.affectedRows;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    } finally {
+        conn.release();
+    }
+};

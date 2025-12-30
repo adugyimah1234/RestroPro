@@ -1,0 +1,4 @@
+"title","quantity","unit","min_quantity_threshold"
+"Example Item 1",10,"pc",2
+"Example Item 2",5.5,"kg",1
+"Example Item 3",100,"g",20

@@ -14,7 +14,8 @@ const {
   deleteInventoryItem,
   addInventoryItemStockMovement,
   getInventoryLogs,
-  getInventoryDashboardData
+  getInventoryDashboardData,
+  bulkAddInventoryItems,
 } = require("../controllers/inventory.controller.js");
 
 const router = Router();
@@ -26,6 +27,15 @@ router.post(
   isSubscriptionActive,
   authorize([SCOPES.INVENTORY]),
   addInventoryItem
+);
+
+router.post(
+  "/bulk-add-items",
+  isLoggedIn,
+  isAuthenticated,
+  isSubscriptionActive,
+  authorize([SCOPES.INVENTORY]),
+  bulkAddInventoryItems
 );
 
 router.get(

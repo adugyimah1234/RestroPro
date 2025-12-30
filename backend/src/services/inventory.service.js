@@ -1,6 +1,67 @@
 const { escape } = require("mysql2");
 const { getMySqlPromiseConnection } = require("../config/mysql.db");
 
+exports.bulkAddInventoryItemsDB = async (items, tenantId, username) => {
+  if (!items || items.length === 0) {
+    return 0;
+  }
+
+  const conn = await getMySqlPromiseConnection();
+  try {
+    await conn.beginTransaction();
+
+    let itemsProcessed = 0;
+    for (const item of items) {
+      const title = item.title;
+      const quantity = parseFloat(item.quantity) || 0;
+      const unit = item.unit;
+      const minQuantityThreshold = parseFloat(item.min_quantity_threshold) || 0;
+
+      if (!title || !unit) {
+        // Skip invalid rows
+        continue;
+      }
+      itemsProcessed++;
+
+      let status = "out";
+      if (quantity > 0 && quantity <= minQuantityThreshold) {
+        status = "low";
+      } else if (quantity > minQuantityThreshold) {
+        status = "in";
+      }
+
+      const [result] = await conn.query(
+        `INSERT INTO inventory_items
+        (title, quantity, unit, min_quantity_threshold, status, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        [title, quantity, unit, minQuantityThreshold, status, tenantId]
+      );
+      const inventoryItemId = result.insertId;
+
+      if (quantity > 0) {
+        await conn.query(
+          `INSERT INTO inventory_logs
+          (tenant_id, inventory_item_id, type, quantity_change, previous_quantity, new_quantity, note, created_by)
+          VALUES (?, ?, 'IN', ?, 0, ?, 'Initial stock (bulk upload)', ?)`,
+          [tenantId, inventoryItemId, quantity, quantity, username]
+        );
+      }
+    }
+
+    if (itemsProcessed === 0) {
+      throw new Error("No valid rows found in the file. Please ensure the columns are named correctly (title, quantity, unit, min_quantity_threshold) and that title and unit are not empty.");
+    }
+
+    await conn.commit();
+    return itemsProcessed;
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+};
+
 exports.addInventoryItemDB = async (
   title,
   quantity,

@@ -1,0 +1,14 @@
+The script is still failing with "Error: getaddrinfo ENOTFOUND host". This error means that the hostname specified in your `DATABASE_URL` in `C:\Users\user\RestroPro\backend\.env` cannot be found or resolved.
+
+Please carefully check the `DATABASE_URL` in your `backend/.env` file again. Here are some common reasons for this error and what to check:
+
+1.  **Typo in Hostname**: Double-check the spelling of the hostname in your `DATABASE_URL`. For example, if your MySQL server is on the same machine, it's usually `localhost` or `127.0.0.1`.
+2.  **MySQL Server Not Running**: Ensure your MySQL server is actually running. You might need to start it.
+3.  **Incorrect IP Address**: If you're using an IP address, make sure it's the correct one for your MySQL server.
+4.  **Firewall Blocking Connection**: A firewall on your machine or network might be blocking the connection to the MySQL server.
+5.  **Docker/Containerization**: If your MySQL database is running inside a Docker container, the hostname might need to be `host.docker.internal` (for Docker Desktop on Windows/Mac) or the specific IP address of the MySQL container.
+
+**Example of a correct `DATABASE_URL` format:**
+`DATABASE_URL="mysql://your_username:your_password@localhost:3306/your_database_name"`
+
+Please correct the `DATABASE_URL` in your `backend/.env` file, and then let me know when you're done so I can try running the script again.

@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const { CONFIG } = require("./src/config");
 const { getTenantIdFromQRCode } = require("./src/services/settings.service");
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, { 

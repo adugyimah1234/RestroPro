@@ -53,6 +53,7 @@ import CartPage from "./views/CartPage";
 import OrderSuccessPage from "./views/OrderSuccessPage";
 import OrderFailedPage from "./views/OrderFailedPage";
 import CustomersImportPage from "./views/CustomersImportPage";
+import MenuItemsImportPage from "./views/MenuItemsImportPage";
 import FeedbackCollectPage from "./views/FeedbackCollectPage";
 import FeedbackCollectSuccessPage from "./views/FeedbackCollectSuccessPage";
 import FeedbackPage from "./views/FeedbackPage";
@@ -265,6 +266,7 @@ export default function App() {
               <Route path="print-settings" element={<PrintSettingsPage />} />
               <Route path="tables" element={<TablesSettingsPage />} />
               <Route path="menu-items" element={<MenuItemsSettingsPage />} />
+              <Route path="menu-items/import" element={<ScopeProtectedRoute scopes={[SCOPES.SETTINGS]}><MenuItemsImportPage /></ScopeProtectedRoute>} />
               <Route path="menu-items/:id" element={<MenuItemViewPage />} />
               <Route
                 path="menu-items/categories"

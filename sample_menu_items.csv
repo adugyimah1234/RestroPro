@@ -1,0 +1,31 @@
+title,description,price,net_price,tax_id,category_id
+Classic Burger,A juicy beef patty with lettuce, tomato, and cheese,12.50,10.00,1,1
+Margherita Pizza,Classic pizza with tomato, mozzarella, and basil,15.00,12.50,1,2
+Caesar Salad,Fresh romaine lettuce, croutons, parmesan, and Caesar dressing,9.00,7.50,1,3
+Spaghetti Carbonara,Pasta with eggs, hard cheese, cured pork, and black pepper,14.00,11.50,1,4
+Grilled Salmon,Served with roasted vegetables and lemon butter sauce,18.00,15.00,1,5
+Chicken Tikka Masala,Creamy tomato-based curry with tender chicken pieces,16.00,13.50,1,6
+Vegetable Lasagna,Layers of pasta, rich tomato sauce, and fresh vegetables,13.00,10.50,1,4
+Fish and Chips,Crispy battered fish with golden fries,14.50,12.00,1,1
+Beef Stir-fry,Tender beef strips with mixed vegetables in a savory sauce,15.50,13.00,1,6
+Chocolate Lava Cake,Warm chocolate cake with a molten center,7.00,6.00,2,7
+New York Cheesecake,Creamy cheesecake with a graham cracker crust,6.50,5.50,2,7
+Espresso,Strong black coffee,3.00,2.50,3,8
+Cappuccino,Espresso with steamed milk and foam,4.50,3.80,3,8
+Orange Juice,Freshly squeezed orange juice,4.00,3.20,3,9
+Water Bottle,Still mineral water,2.00,1.50,3,9
+Veggie Burger,Plant-based patty with all the fixings,11.00,9.00,1,1
+Pepperoni Pizza,Classic pizza topped with spicy pepperoni,16.00,13.50,1,2
+Greek Salad,Cucumbers, tomatoes, olives, feta cheese, and red onion,10.00,8.50,1,3
+Penne Arrabbiata,Pasta with a spicy tomato sauce,12.00,9.50,1,4
+Roasted Chicken,Half chicken roasted to perfection with herbs,17.00,14.00,1,5
+Lamb Rogan Josh,Aromatic lamb curry from Kashmir,17.50,14.50,1,6
+Mushroom Risotto,Creamy Arborio rice with wild mushrooms,14.00,11.50,1,4
+Shrimp Scampi,Shrimp sautéed in garlic butter sauce with pasta,19.00,16.00,1,5
+Tiramisu,Coffee-flavored Italian dessert,8.00,7.00,2,7
+Apple Pie,Classic apple pie with a scoop of vanilla ice cream,7.50,6.50,2,7
+Latte,Espresso with steamed milk,4.50,3.80,3,8
+Green Tea,Hot green tea,3.50,2.80,3,8
+Coca-Cola,Classic soft drink,3.00,2.50,3,9
+Lemonade,Fresh homemade lemonade,4.00,3.20,3,9
+French Fries,Crispy golden french fries,5.00,4.00,1,1
