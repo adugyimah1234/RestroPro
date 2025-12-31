@@ -1102,29 +1102,29 @@ export default function SuperAdminTenantsPage() {
 
           <div className="mt-4">
             <label htmlFor="subscriptionId" className="mb-1 block text-gray-500 text-sm">
-              {t('superadmin_tenants.subscription_id')}{" "} {/* New translation key */}
+              {t('superadmin_tenants.subscription_reference_id')}{" "} {/* Changed translation key */}
             </label>
             <input
               ref={subscriptionIdRef}
               type="text"
               name="subscriptionId"
               className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green'
-              placeholder={t('superadmin_tenants.enter_subscription_id')} 
-              // /* New translation key */
+              placeholder={t('superadmin_tenants.enter_subscription_reference_id')} 
+              // /* Changed translation key */
             />
           </div>
 
           <div className="mt-4">
             <label htmlFor="paymentCustomerId" className="mb-1 block text-gray-500 text-sm">
-              {t('superadmin_tenants.payment_customer_id')}{" "} {/* New translation key */}
+              {t('superadmin_tenants.customer_payment_id')}{" "} {/* Changed translation key */}
             </label>
             <input
               ref={paymentCustomerIdRef}
               type="text"
               name="paymentCustomerId"
               className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green'
-              placeholder={t('superadmin_tenants.enter_payment_customer_id')} 
-              // {/* New translation key */}
+              placeholder={t('superadmin_tenants.enter_customer_payment_id')} 
+              // {/* Changed translation key */}
             />
           </div>
 
@@ -1134,7 +1134,7 @@ export default function SuperAdminTenantsPage() {
                 htmlFor="subscriptionStart"
                 className="mb-1 block text-gray-500 text-sm"
               >
-                {t('superadmin_tenants.subscription_start')}{" "}
+                {t('superadmin_tenants.subscription_start_date')}{" "} {/* Changed translation key */}
               </label>
               <input
                 ref={subscriptionStartRef}
@@ -1148,7 +1148,7 @@ export default function SuperAdminTenantsPage() {
                 htmlFor="subscriptionEnd"
                 className="mb-1 block text-gray-500 text-sm"
               >
-                {t('superadmin_tenants.subscription_end')}{" "}
+                {t('superadmin_tenants.subscription_end_date')}{" "} {/* Changed translation key */}
               </label>
               <input
                 ref={subscriptionEndRef}

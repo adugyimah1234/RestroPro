@@ -1053,7 +1053,15 @@
     "failed_to_export_data": "Failed to export Data. Please try again.",
     "something_went_wrong": "Something went wrong!",
     "please_wait":"Please wait...",
-    "month":"month"
+    "month":"month",
+    "update_subscription": "Update Subscription",
+    "subscription_reference_id": "Subscription Reference ID",
+    "enter_subscription_reference_id": "Enter Subscription Reference ID",
+    "payment_customer_id": "Customer Payment ID",
+    "enter_customer_payment_id": "Enter Customer Payment ID",
+    "subscription_start_date": "Subscription Start Date",
+    "subscription_end_date": "Subscription End Date",
+    "please_provide_all_subscription_details": "Please provide all subscription details!"
   },
   "pos": {
     "title": "POS - Point of Sale",
