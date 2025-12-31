@@ -1,18 +1,18 @@
 const { getAllMenuItemsDB, getAllAddonsDB, getAllVariantsDB, getAllRecipeItemsDB } = require("../services/menu_item.service");
 const { checkInvoiceIdDB } = require("../services/orders.service");
-const { getStoreSettingDB, getCategoriesDB, getTenantIdFromQRCode, getStoreTableByEncryptedIdDB , placeOrderViaQrMenuDB, saveFeedbackDB, getServiceChargeDB} = require("../services/settings.service");
+const { getStoreSettingDB, getCategoriesDB, getTenantIdFromIdentifier, getStoreTableByEncryptedIdDB , placeOrderViaQrMenuDB, saveFeedbackDB, getServiceChargeDB} = require("../services/settings.service");
 
 exports.getQRMenuInit = async (req, res) => {
     try {
-        const qrcode = req.params.qrcode;
+        const tenantIdentifier = req.params.tenantIdentifier;
         const tableId = req.query.tableId;
 
-        const tenantId = await getTenantIdFromQRCode(qrcode);
+        const tenantId = await getTenantIdFromIdentifier(tenantIdentifier);
 
         if(!tenantId) {
             return res.status(404).json({
                 success: false,
-                message: req.__("qr_digital_menu_not_found") // Translate message
+                message: req.__("store_not_found") // Translate message
             });
         }
 
@@ -65,9 +65,9 @@ exports.getQRMenuInit = async (req, res) => {
 
 exports.placeOrderViaQrMenu = async (req, res) => {
     try {
-      const qrcode = req.params.qrcode;
+      const tenantIdentifier = req.params.tenantIdentifier;
 
-      const tenantId = await getTenantIdFromQRCode(qrcode);
+      const tenantId = await getTenantIdFromIdentifier(tenantIdentifier);
 
       const {deliveryType , cartItems, customerType, customer, tableId} = req.body;
 
@@ -97,9 +97,9 @@ exports.placeOrderViaQrMenu = async (req, res) => {
 
 exports.collectFeedback = async (req, res) => {
   try {
-    const qrcode = req.params.qrcode;
+    const tenantIdentifier = req.params.tenantIdentifier;
 
-    const tenantId = await getTenantIdFromQRCode(qrcode);
+    const tenantId = await getTenantIdFromIdentifier(tenantIdentifier);
 
     const {invoiceId:encryptedInvoiceId, customerId, name, phone, email, birthdate, food_quality, service, ambiance, staff_behavior, recommend, remarks } = req.body;
 
@@ -109,7 +109,7 @@ exports.collectFeedback = async (req, res) => {
     if(!tenantId) {
       return res.status(400).json({
         success: false,
-        message: req.__("broken_link_goto_homepage") // Translate message
+        message: req.__("store_not_found") // Translate message
       });
     }
 

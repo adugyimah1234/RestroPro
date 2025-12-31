@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import {
@@ -15,6 +15,8 @@ import {
   IconSettings2,
   IconToolsKitchen3,
   IconUsersGroup,
+  IconKey, // Added for API Key
+  IconCreditCard, // Added for Billing
 } from "@tabler/icons-react";
 import { clsx } from "clsx";
 import Logo from "../assets/logo.svg";
@@ -33,6 +35,7 @@ export default function SuperAdminNavbar() {
   const user = getUserDetailsInLocalStorage();
   
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useContext(NavbarContext);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false); // New state for settings dropdown
 
   const navbarItems = [
     {
@@ -53,6 +56,26 @@ export default function SuperAdminNavbar() {
       icon: <IconChartArea stroke={iconStroke} />,
       path: "/superadmin/dashboard/reports",
     },
+    {
+      type: "parent",
+      text: t('superadmin_navbar.settings'),
+      icon: <IconSettings2 stroke={iconStroke} />,
+      path: "/superadmin/dashboard/settings", // This will be a conceptual path for the parent
+      children: [
+        {
+          type: "link",
+          text: t('superadmin_navbar.api_key'),
+          icon: <IconKey stroke={iconStroke} />, // Using IconKey
+          path: "/superadmin/dashboard/gemini-settings",
+        },
+        {
+          type: "link",
+          text: t('superadmin_navbar.billing'),
+          icon: <IconCreditCard stroke={iconStroke} />, // Using IconCreditCard
+          path: "/superadmin/dashboard/billing", // Placeholder for now
+        },
+      ]
+    },
   ];
 
   const btnToggleNavbar = () => {
@@ -69,8 +92,50 @@ export default function SuperAdminNavbar() {
       <div className ="flex flex-col items-start gap-4 h-screen px-5 py-6 overflow-y-auto fixed left-0 top-0 bg-restro-green-light">
         <img src={theme === "black" ? LogoDark : Logo} alt="logo" className="w-12 block mb-6" />
         {navbarItems.map((item, index) => {
-          if (item.type == "text") {
-            return;
+          if (item.type === "text") {
+            return null;
+          }
+
+          if (item.type === "parent") {
+            return (
+              <div key={index} className="w-full">
+                <button
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className={clsx(
+                    `w-12 h-12 flex items-center justify-center rounded-full transition`,
+                    {
+                      "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(item.path),
+                      "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(item.path),
+                      "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(item.path),
+                      "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(item.path),
+                    }
+                  )}
+                >
+                  {item.icon}
+                </button>
+                {isSettingsOpen && item.children && (
+                  <div className="ml-4 mt-2 space-y-2">
+                    {item.children.map((child, childIndex) => (
+                      <Link
+                        key={childIndex}
+                        className={clsx(
+                          `w-12 h-12 flex items-center justify-center rounded-full transition`,
+                          {
+                            "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(child.path),
+                            "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(child.path),
+                            "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(child.path),
+                            "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(child.path),
+                          }
+                        )}
+                        to={child.path}
+                      >
+                        {child.icon}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
           }
 
           return (
@@ -123,11 +188,53 @@ export default function SuperAdminNavbar() {
         </div>
 
         {navbarItems.map((item, index) => {
-          if (item.type == "text") {
+          if (item.type === "text") {
             return (
               <p key={index} className="font-bold hidden md:block">
                 {item.text}
               </p>
+            );
+          }
+
+          if (item.type === "parent") {
+            return (
+              <div key={index} className="w-full">
+                <button
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className={clsx(
+                    "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-1 md:px-4 md:py-3 rounded-full transition",
+                    {
+                      "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(item.path),
+                      "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(item.path),
+                      "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(item.path),
+                      "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(item.path),
+                    }
+                  )}
+                >
+                  {item.icon} <p className="hidden md:block">{item.text}</p>
+                </button>
+                {isSettingsOpen && item.children && (
+                  <div className="ml-4 mt-2 space-y-2">
+                    {item.children.map((child, childIndex) => (
+                      <Link
+                        key={childIndex}
+                        className={clsx(
+                          "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-1 md:px-4 md:py-3 rounded-full transition",
+                          {
+                            "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(child.path),
+                            "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(child.path),
+                            "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(child.path),
+                            "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(child.path),
+                          }
+                        )}
+                        to={child.path}
+                      >
+                        {child.icon} <p className="hidden md:block">{child.text}</p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           }
 

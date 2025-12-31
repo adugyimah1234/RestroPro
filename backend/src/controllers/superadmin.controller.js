@@ -1,7 +1,7 @@
 const { CONFIG } = require("../config");
 const { removeRefreshTokenDB, addRefreshTokenDB, verifyRefreshTokenDB } = require("../services/auth.service");
 
-const { signInDB, getAdminUserDB, getActiveTenantsDB, getInActiveTenantsDB,getAllTenantsDB,  getOrdersProcessedTodayDB, getSalesVolumeTodayDB, getMRRValueDB, getARRValueDB, getRestaurantsTotalCustomersDB, getSuperAdminTopSellingItemsDB, getSuperAdminSalesVolumeDB, getSuperAdminOrdersProcessedDB, getTenantsDB , addTenantDB , updateTenantDB , getTenantCntByIdDB ,getTenantDetailsByIdDB , logoutAllUsersOfTenantDB , deleteTenantDB , getTenantsDataByStatusDB, getTenantSubscriptionHistoryDB, getTenantTotalUsersDB, getTenantDetailsDB, getTenantStoreDetailsDB } = require("../services/superadmin.service")
+const { signInDB, getAdminUserDB, getActiveTenantsDB, getInActiveTenantsDB,getAllTenantsDB,  getOrdersProcessedTodayDB, getSalesVolumeTodayDB, getMRRValueDB, getARRValueDB, getRestaurantsTotalCustomersDB, getSuperAdminTopSellingItemsDB, getSuperAdminSalesVolumeDB, getSuperAdminOrdersProcessedDB, getTenantsDB , addTenantDB , updateTenantDB , getTenantCntByIdDB ,getTenantDetailsByIdDB , logoutAllUsersOfTenantDB , deleteTenantDB , getTenantsDataByStatusDB, getTenantSubscriptionHistoryDB, getTenantTotalUsersDB, getTenantDetailsDB, getTenantStoreDetailsDB, updateTenantSubscriptionDB } = require("../services/superadmin.service")
 const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 const {checkEmailExistsSuperadminDB} = require('../services/auth.service');
 
@@ -486,6 +486,34 @@ exports.getSuperAdminReportsData = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: req.__("something_went_wrong_try_later") // Translate message
+        });
+    }
+};
+
+exports.updateTenantSubscription = async (req, res) => {
+    try {
+        const tenantId = req.params.id;
+        const { subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive } = req.body;
+
+        if (!tenantId) {
+            return res.status(400).json({ message: req.__("invalid_tenant") });
+        }
+        if (!subscriptionId || !paymentCustomerId || !subscriptionStart || !subscriptionEnd || isActive === undefined) {
+            return res.status(400).json({ message: req.__("missing_required_fields") });
+        }
+
+        await updateTenantSubscriptionDB(tenantId, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive);
+
+        return res.status(200).json({
+            success: true,
+            message: req.__("tenant_subscription_updated_successfully") // New translation key
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: req.__("something_went_wrong_try_later")
         });
     }
 };

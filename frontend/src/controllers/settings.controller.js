@@ -307,3 +307,14 @@ export async function removeDevice(deviceId) {
     throw error;
   }
 };
+
+export async function setTenantSlug(tenantSlug) {
+  try {
+    const response = await ApiClient.post("/settings/store-setting/tenant-slug", {
+      tenantSlug
+    });
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}

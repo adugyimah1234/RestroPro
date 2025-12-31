@@ -3,10 +3,10 @@ import { API } from "../config/config";
 
 const CART_KEY = 'RESTROPROSAAS__CART';
 
-export async function getQRMenuInit(qrcode, tableId) {
+export async function getQRMenuInit(tenantIdentifier, tableId) {
     axios.defaults.withCredentials = true;
     try {
-        const response = await axios.get(`${API}/qrmenu/${qrcode}?tableId=${tableId}`);
+        const response = await axios.get(`${API}/qrmenu/${tenantIdentifier}?tableId=${tableId}`);
         return response;
     } catch (error) {
         throw error;
@@ -23,9 +23,9 @@ export function setCart(cart) {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
 }
 
-export async function createOrderFromQrMenu(deliveryType , cartItems, customerType, customer, tableId , qrcode) {
+export async function createOrderFromQrMenu(deliveryType , cartItems, customerType, customer, tableId , tenantIdentifier) {
     try {
-        const response = await axios.post(`${API}/qrmenu/${qrcode}/place-order` , {
+        const response = await axios.post(`${API}/qrmenu/${tenantIdentifier}/place-order` , {
            deliveryType, cartItems, customerType, customer, tableId
         });
         return response;
@@ -34,9 +34,9 @@ export async function createOrderFromQrMenu(deliveryType , cartItems, customerTy
     }
 }
 
-export async function saveFeedback(qrcode, invoiceId, customerId, name, phone, email, birthdate, food_quality, service, ambiance, staff_behavior, recommend, remarks) {
+export async function saveFeedback(tenantIdentifier, invoiceId, customerId, name, phone, email, birthdate, food_quality, service, ambiance, staff_behavior, recommend, remarks) {
     try {
-        const response = await axios.post(`${API}/qrmenu/${qrcode}/feedback` , {
+        const response = await axios.post(`${API}/qrmenu/${tenantIdentifier}/feedback` , {
             invoiceId, customerId, name, phone, email, birthdate, food_quality, service, ambiance, staff_behavior, recommend, remarks
         });
         return response;

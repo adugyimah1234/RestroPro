@@ -123,5 +123,10 @@
 	"inventory_item_not_found_message": "Inventory item not found",
 	"invalid_movement_type_message": "Invalid movement type",
 	"insufficient_inventory_quantity_message": "Insufficient inventory quantity",
-	"inventory_items_added_successfully": "inventory_items_added_successfully"
+	"inventory_items_added_successfully": "inventory_items_added_successfully",
+	"please_provide_tenant_slug": "Please provide tenant slug!",
+	"invalid_tenant_slug_format": "Invalid tenant slug format. Use lowercase alphanumeric characters and hyphens only.",
+	"tenant_slug_updated_successfully": "Tenant slug updated successfully!",
+	"store_not_found": "Store not found!",
+	"tenant_subscription_updated_successfully": "Tenant subscription updated successfully!"
 }

@@ -25,6 +25,8 @@ import {
   deleteTenant,
   getTenantsDataByStatus,
   getSuperAdminTenantsData,
+  updateTenantSubscription, // Added import
+  getTenantDetails, // Added import
 } from "../../controllers/superadmin.controller";
 import { clsx } from "clsx";
 import { toast } from "react-hot-toast";
@@ -33,6 +35,7 @@ import { mutate } from "swr";
 import useDebounce from "../../utils/useDebounce";
 import { Link } from "react-router-dom";
 import { useTheme } from "../../contexts/ThemeContext";
+
 export default function SuperAdminTenantsPage() {
   const { t } = useTranslation();
   const filters = [
@@ -62,6 +65,14 @@ export default function SuperAdminTenantsPage() {
   const updatenameRef = useRef();
   const updateusernameRef = useRef();
   const updateisActiveRef = useRef();
+
+  // For subscription update
+  const [tenantIdForSubscriptionUpdate, setTenantIdForSubscriptionUpdate] = useState(null); // Added state
+  const subscriptionIdRef = useRef(); // Added ref
+  const paymentCustomerIdRef = useRef(); // Added ref
+  const subscriptionStartRef = useRef(); // Added ref
+  const subscriptionEndRef = useRef(); // Added ref
+  const subscriptionIsActiveRef = useRef(); // Added ref
 
   // For Delete
   const [tenantIdForDelete, setTenantIdForDelete] = useState(null);
@@ -418,6 +429,65 @@ export default function SuperAdminTenantsPage() {
     }
   };
 
+  const btnShowUpdateSubscriptionModal = async (tenantId) => {
+    try {
+      toast.loading(t('superadmin_tenants.please_wait'));
+      const res = await getTenantDetails(tenantId);
+      toast.dismiss();
+      if (res.status === 200) {
+        const { tenantInfo } = res.data;
+        setTenantIdForSubscriptionUpdate(tenantId);
+        subscriptionIdRef.current.value = tenantInfo?.subscription_id || "";
+        paymentCustomerIdRef.current.value = tenantInfo?.payment_customer_id || "";
+        subscriptionStartRef.current.value = tenantInfo?.subscription_start?.split("T")[0] || "";
+        subscriptionEndRef.current.value = tenantInfo?.subscription_end?.split("T")[0] || "";
+        subscriptionIsActiveRef.current.checked = tenantInfo?.is_active || false;
+        document.getElementById("modal-update-subscription").showModal();
+      }
+    } catch (error) {
+      const message = error?.response?.data?.message || t('superadmin_tenants.something_went_wrong');
+      console.error(error);
+      toast.dismiss();
+      toast.error(message);
+    }
+  };
+
+  const btnUpdateSubscription = async () => {
+    const subscriptionId = subscriptionIdRef.current.value;
+    const paymentCustomerId = paymentCustomerIdRef.current.value;
+    const subscriptionStart = subscriptionStartRef.current.value;
+    const subscriptionEnd = subscriptionEndRef.current.value;
+    const isActive = subscriptionIsActiveRef.current.checked;
+
+    if (!subscriptionId || !paymentCustomerId || !subscriptionStart || !subscriptionEnd) {
+      toast.error(t('superadmin_tenants.please_provide_all_subscription_details')); // New translation key
+      return;
+    }
+
+    try {
+      toast.loading(t('superadmin_tenants.please_wait'));
+      const res = await updateTenantSubscription(
+        tenantIdForSubscriptionUpdate,
+        subscriptionId,
+        paymentCustomerId,
+        subscriptionStart,
+        subscriptionEnd,
+        isActive
+      );
+      if (res.status === 200) {
+        await fetchData();
+        toast.dismiss();
+        toast.success(res.data.message);
+        document.getElementById("modal-update-subscription").close();
+      }
+    } catch (error) {
+      const message = error?.response?.data?.message || t('superadmin_tenants.something_went_wrong');
+      console.error(error);
+      toast.dismiss();
+      toast.error(message);
+    }
+  };
+
   return (
     <Page className="px-4 py-3 overflow-x-hidden h-full">
       <div className="flex gap-6 items-center mb-6 mt-6">
@@ -602,6 +672,15 @@ export default function SuperAdminTenantsPage() {
                               className="rounded-[42px] bg-white dark:bg-restro-bg-gray p-3 text-restro-text"
                             >
                               <IconPencil size={24} stroke={iconStroke} />
+                            </button>
+                            <button
+                              onClick={() => btnShowUpdateSubscriptionModal(tenant.id)}
+                              className="rounded-[42px] flex items-center justify-center bg-white dark:bg-restro-bg-gray p-3 text-restro-text"
+                            >
+                              <IconCalendarEvent
+                                size={24}
+                                stroke={iconStroke}
+                              />
                             </button>
                             <Link
                               to={`/superadmin/dashboard/tenants/${tenant.id}/subscription-history`}
@@ -1014,6 +1093,105 @@ export default function SuperAdminTenantsPage() {
           </div>
         </div>
       </dialog>
+      {/* Delete Confirmation Modal with Red Overlay */}
+
+      {/* Update Subscription Modal */}
+      <dialog id="modal-update-subscription" className="modal modal-bottom sm:modal-middle">
+        <div className='modal-box border border-restro-border-green dark:rounded-2xl'>
+          <h3 className="font-bold text-lg">{t('superadmin_tenants.update_subscription')}</h3> {/* New translation key */}
+
+          <div className="mt-4">
+            <label htmlFor="subscriptionId" className="mb-1 block text-gray-500 text-sm">
+              {t('superadmin_tenants.subscription_id')}{" "} {/* New translation key */}
+            </label>
+            <input
+              ref={subscriptionIdRef}
+              type="text"
+              name="subscriptionId"
+              className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green'
+              placeholder={t('superadmin_tenants.enter_subscription_id')} 
+              // /* New translation key */
+            />
+          </div>
+
+          <div className="mt-4">
+            <label htmlFor="paymentCustomerId" className="mb-1 block text-gray-500 text-sm">
+              {t('superadmin_tenants.payment_customer_id')}{" "} {/* New translation key */}
+            </label>
+            <input
+              ref={paymentCustomerIdRef}
+              type="text"
+              name="paymentCustomerId"
+              className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green'
+              placeholder={t('superadmin_tenants.enter_payment_customer_id')} 
+              // {/* New translation key */}
+            />
+          </div>
+
+          <div className="flex gap-4 w-full my-4">
+            <div className="flex-1">
+              <label
+                htmlFor="subscriptionStart"
+                className="mb-1 block text-gray-500 text-sm"
+              >
+                {t('superadmin_tenants.subscription_start')}{" "}
+              </label>
+              <input
+                ref={subscriptionStartRef}
+                type="date"
+                name="subscriptionStart"
+                className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green'
+              />
+            </div>
+            <div className="flex-1">
+              <label
+                htmlFor="subscriptionEnd"
+                className="mb-1 block text-gray-500 text-sm"
+              >
+                {t('superadmin_tenants.subscription_end')}{" "}
+              </label>
+              <input
+                ref={subscriptionEndRef}
+                type="date"
+                name="subscriptionEnd"
+                className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green'
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center mt-6 ml-1 gap-2">
+            <label className="text-gray-500 text-sm mr-2">{t('superadmin_tenants.active')}</label>
+            <label className="relative inline-flex items-center cursor-pointer no-drag">
+              <input
+                ref={subscriptionIsActiveRef}
+                type="checkbox"
+                name="subscriptionIsActive"
+                id="subscriptionIsActive"
+                value=""
+                className="sr-only peer"
+              />
+              <div className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full  after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-100 after:border-restro-bg-gray after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-restro-checkbox peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-restro-ring-light peer-checked:bg-restro-green peer-checked:after:border-restro-border-green`}></div>
+            </label>
+          </div>
+
+          <div className="modal-action mt-4">
+            <form method="dialog">
+              <button className="btn transition active:scale-95 hover:shadow-lg px-4 py-3 rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text">
+                {t('superadmin_tenants.close')}
+              </button>
+              <button
+                onClick={() => {
+                  btnUpdateSubscription();
+                }}
+                className='btn ml-2 rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'
+              >
+                {t('superadmin_tenants.save')}
+              </button>
+            </form>
+          </div>
+        </div>
+      </dialog>
+      {/* Update Subscription Modal */}
     </Page>
   );
 }

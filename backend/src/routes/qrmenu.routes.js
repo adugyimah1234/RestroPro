@@ -3,17 +3,17 @@ const { getQRMenuInit , placeOrderViaQrMenu, collectFeedback } = require("../con
 const router = Router();
 
 router.get(
-  "/:qrcode",
+  "/:tenantIdentifier",
   getQRMenuInit
 );
 
 router.post(
-  "/:qrcode/place-order",
+  "/:tenantIdentifier/place-order",
   placeOrderViaQrMenu
 );
 
 router.post(
-  "/:qrcode/feedback",
+  "/:tenantIdentifier/feedback",
   collectFeedback
 )
 

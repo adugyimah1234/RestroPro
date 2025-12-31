@@ -22,6 +22,7 @@ import {
   IconUser,
   IconUsersGroup,
   IconX,
+  IconWorld
 } from "@tabler/icons-react";
 import { Fragment, useEffect, useState } from "react";
 import { iconStroke } from "../config/config";
@@ -35,12 +36,15 @@ import { SCOPES } from "../config/scopes";
 import AppBarDropdown from "./AppBarDropdown";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../contexts/ThemeContext";
+import { useStoreSettings } from "../controllers/settings.controller"; // Import useStoreSettings
 
 export default function AppBar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const { theme } = useTheme();
+
+  const { data: storeSettingsData, isLoading: storeSettingsLoading, error: storeSettingsError } = useStoreSettings(); // Fetch store settings
 
   useEffect(() => {
     const down = (e) => {
@@ -56,7 +60,7 @@ export default function AppBar() {
 
   const user = getUserDetailsInLocalStorage();
   const { role: userRole, scope } = user;
-  const userScopes = scope?.split(",");
+  const userScopes = scope?.split(",") || []; // Added default empty array
 
   const btnLogout = async () => {
     try {
@@ -224,6 +228,19 @@ export default function AppBar() {
           </div>
         </button>
         {/* search */}
+
+        {/* Public Order Link */}
+        {storeSettingsData?.tenantSlug || storeSettingsData?.uniqueQRCode ? (
+            <a
+                href={`${window.location.origin}/m/${storeSettingsData?.tenantSlug || storeSettingsData?.uniqueQRCode}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full flex items-center p-2 bg-restro-green-light text-restro-text"
+            >
+                <IconWorld stroke={iconStroke} />
+            </a>
+        ) : null}
+        {/* Public Order Link */}
 
         {/* profile */}
         <AppBarDropdown />

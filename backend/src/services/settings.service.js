@@ -25,6 +25,49 @@ exports.getTenantIdFromQRCode = async (qrcode) => {
     }
 }
 
+exports.getTenantIdFromIdentifier = async (identifier) => {
+    const conn = await getMySqlPromiseConnection();
+    try {
+
+        const sql = `
+        SELECT
+            tenant_id
+        FROM
+            store_details
+        WHERE
+            unique_qr_code = ? OR tenant_slug = ?
+        LIMIT 1;
+        `;
+
+        const [result] = await conn.query(sql, [identifier, identifier]);
+        return result[0]?.tenant_id;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    } finally {
+        conn.release();
+    }
+}
+
+exports.setTenantSlugDB = async (tenantId, tenantSlug) => {
+    const conn = await getMySqlPromiseConnection();
+    try {
+        const sql = `
+        UPDATE store_details
+        SET tenant_slug = ?
+        WHERE tenant_id = ?;
+        `;
+
+        await conn.query(sql, [tenantSlug, tenantId]);
+        return;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    } finally {
+        conn.release();
+    }
+}
+
 exports.getCurrencyDB = async (tenantId) => {
     const conn = await getMySqlPromiseConnection();
     try {
@@ -53,7 +96,7 @@ exports.getStoreSettingDB = async (tenantId) => {
 
     try {
         const sql = `
-        SELECT tenant_id, store_image, store_name, address, phone, email, currency, is_qr_menu_enabled, unique_qr_code, is_qr_order_enabled, is_feedback_enabled, unique_id FROM store_details
+        SELECT tenant_id, store_image, store_name, address, phone, email, currency, is_qr_menu_enabled, unique_qr_code, is_qr_order_enabled, is_feedback_enabled, unique_id, tenant_slug FROM store_details
         WHERE tenant_id = ?
         LIMIT 1;
         `;

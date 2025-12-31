@@ -19,7 +19,7 @@ const CartPage = () => {
   const [showPhoneFields, setShowPhoneFields] = useState(false);
   const [selectedCustomerType, setSelectedCustomerType] = useState(null);
   const params = useParams();
-  const qrcode = params.qrcode;
+  const tenantIdentifier = params.tenantIdentifier;
   const navigate = useNavigate();
 
   const location = useLocation();
@@ -49,11 +49,11 @@ const CartPage = () => {
 
   const sendNewOrderEvent = () => {
     if (isSocketConnected) {
-      socket.emit('new_qrorder_backend', {}, qrcode);
+      socket.emit('new_qrorder_backend', {}, tenantIdentifier);
     } else {
       // Handle disconnected state (optional)
       initSocket();
-      socket.emit('new_qrorder_backend', {}, qrcode);
+      socket.emit('new_qrorder_backend', {}, tenantIdentifier);
     }
   }
 
@@ -156,7 +156,7 @@ const CartPage = () => {
 
       toast.loading(t('cart.please_wait'));
 
-      const res = await createOrderFromQrMenu(deliveryType , cartItems, customerType, customer, tableId , qrcode);
+      const res = await createOrderFromQrMenu(deliveryType , cartItems, customerType, customer, tableId , tenantIdentifier);
       toast.dismiss();
       if(res.status == 200) {
         const data = res.data;

@@ -34,7 +34,8 @@ const {
   getCategories,
   updateCategory,
   deleteCategory,
-  changeCategoryVisibilty
+  changeCategoryVisibilty,
+  setTenantSlug
 } = require("../controllers/settings.controller");
 
 const router = Router();
@@ -54,6 +55,15 @@ router.post(
   isSubscriptionActive,
   authorize([SCOPES.SETTINGS]),
   setStoreDetails
+);
+
+router.post(
+  "/store-setting/tenant-slug",
+  isLoggedIn,
+  isAuthenticated,
+  isSubscriptionActive,
+  authorize([SCOPES.SETTINGS]),
+  setTenantSlug
 );
 
 router.post(

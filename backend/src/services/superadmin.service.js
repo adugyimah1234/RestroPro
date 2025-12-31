@@ -778,3 +778,27 @@ const getFilterCondition = (field, type, from, to) => {
 
     return { params, filter };
 }
+
+exports.updateTenantSubscriptionDB = async (tenantId, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive) => {
+    const conn = await getMySqlPromiseConnection();
+    try {
+        const sql = `
+        UPDATE tenants
+        SET
+            subscription_id = ?,
+            payment_customer_id = ?,
+            subscription_start = ?,
+            subscription_end = ?,
+            is_active = ?
+        WHERE
+            id = ?;
+        `;
+        await conn.query(sql, [subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive, tenantId]);
+        return;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    } finally {
+        conn.release();
+    }
+};

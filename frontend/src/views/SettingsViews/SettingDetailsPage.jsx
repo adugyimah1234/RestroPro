@@ -2,7 +2,7 @@ import React, { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import Page from "../../components/Page";
 import { CURRENCIES } from "../../config/currencies.config";
-import { saveStoreSettings, useStoreSettings,uploadStoreImage , deleteStoreImage} from "../../controllers/settings.controller";
+import { saveStoreSettings, useStoreSettings,uploadStoreImage , deleteStoreImage, setTenantSlug} from "../../controllers/settings.controller";
 import {toast} from "react-hot-toast"
 import { mutate } from "swr";
 import Popover from "../../components/Popover";
@@ -24,6 +24,7 @@ export default function SettingDetailsPage() {
   const isQRMenuEnabledRef = useRef();
   const isQROrderEnabledRef = useRef();
   const isFeedbackEnabledRef = useRef();
+  const tenantSlugRef = useRef(); // Added useRef for tenantSlug
   const { theme } = useTheme();
 
   const { APIURL, data, error, isLoading } = useStoreSettings();
@@ -37,9 +38,10 @@ export default function SettingDetailsPage() {
     return <Page className="px-8 py-6">{t('settings.error_loading_data')}</Page>;
   }
 
-  const { storeImage, storeName, email, address, phone, currency, isQRMenuEnabled, uniqueQRCode , isQROrderEnabled, isFeedbackEnabled, uniqueId } = data;
+  const { storeImage, storeName, email, address, phone, currency, isQRMenuEnabled, uniqueQRCode , isQROrderEnabled, isFeedbackEnabled, uniqueId, tenantSlug } = data;
   
   const QR_MENU_LINK = getQRMenuLink(uniqueQRCode);
+  const WEB_ORDER_LINK = `${window.location.origin}/m/${tenantSlug}`;
 
   const btnSave = async () => {
     const storeName = storeNameRef.current.value;
@@ -73,7 +75,8 @@ export default function SettingDetailsPage() {
 
   const btnDownloadMenuQR = async () => {
     try {
-      const qrDataURL = await QRCode.toDataURL(QR_MENU_LINK, {width: 1080});
+      const linkToGenerateQR = tenantSlug ? WEB_ORDER_LINK : QR_MENU_LINK;
+      const qrDataURL = await QRCode.toDataURL(linkToGenerateQR, {width: 1080});
       const link = document.createElement("a");
       link.download="qr.png";
       link.href=qrDataURL;
@@ -364,6 +367,60 @@ export default function SettingDetailsPage() {
             <div className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full  after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-100 after:border-restro-bg-gray after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-restro-checkbox peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-restro-ring-light peer-checked:bg-restro-green peer-checked:after:border-restro-border-green`}></div>
           </label>
           {/* switch */}
+        </div>
+        
+        <div className="mt-8 text-sm text-gray-500">
+            <h3 className="text-xl font-light mb-4">{t('settings.web_order_settings')}</h3>
+
+            <div className="mt-4">
+                <label htmlFor="tenantSlug" className="block mb-1">
+                    {t('settings.tenant_slug')}
+                </label>
+                <input
+                    ref={tenantSlugRef}
+                    type="text"
+                    name="tenantSlug"
+                    id="tenantSlug"
+                    defaultValue={tenantSlug}
+                    placeholder={t('settings.tenant_slug_placeholder')}
+                    className='block w-full lg:min-w-96 rounded-lg px-4 py-2 text-restro-text bg-restro-gray border border-restro-border-green focus:outline-restro-button-hover'
+                />
+            </div>
+
+            {tenantSlug && (
+                <div className="mt-4 flex flex-col lg:flex-row gap-4">
+                    <a
+                        target="_blank"
+                        href={WEB_ORDER_LINK}
+                        className='btn btn-sm transition-colors rounded-xl bg-restro-gray hover:bg-restro-button-hover'
+                    >
+                        <IconExternalLink stroke={iconStroke} /> {t('settings.view_web_order_menu')}
+                    </a>
+                </div>
+            )}
+
+            <button
+                onClick={async () => {
+                    const newTenantSlug = tenantSlugRef.current.value;
+                    try {
+                        toast.loading(t('settings.please_wait'));
+                        const res = await setTenantSlug(newTenantSlug);
+                        if (res.status === 200) {
+                            await mutate(APIURL);
+                            toast.dismiss();
+                            toast.success(res.data.message);
+                        }
+                    } catch (error) {
+                        const message = error?.response?.data?.message || t('settings.something_went_wrong');
+                        console.error(error);
+                        toast.dismiss();
+                        toast.error(message);
+                    }
+                }}
+                className='text-white w-full lg:min-w-96 transition  active:scale-95 rounded-xl px-4 py-2 mt-6 bg-restro-green hover:bg-restro-green-button-hover '
+            >
+                {t('settings.save_tenant_slug')}
+            </button>
         </div>
 
         <button 

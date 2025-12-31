@@ -1,7 +1,44 @@
 const { nanoid } = require("nanoid");
-const { getStoreSettingDB, setStoreSettingDB, uploadStoreImageDB, deleteStoreImageDB, getPrintSettingDB, setPrintSettingDB, getTaxesDB, addTaxDB, updateTaxDB, deleteTaxDB, getTaxDB, addPaymentTypeDB, getPaymentTypesDB, updatePaymentTypeDB, deletePaymentTypeDB, togglePaymentTypeDB, addStoreTableDB, getStoreTablesDB, updateStoreTableDB, deleteStoreTableDB, addCategoryDB, getCategoriesDB, updateCategoryDB, deleteCategoryDB, getQRMenuCodeDB, updateQRMenuCodeDB, changeCategoryVisibiltyDB, updateServiceChargeDB, getServiceChargeDB } = require("../services/settings.service");
+const { getStoreSettingDB, setStoreSettingDB, uploadStoreImageDB, deleteStoreImageDB, getPrintSettingDB, setPrintSettingDB, getTaxesDB, addTaxDB, updateTaxDB, deleteTaxDB, getTaxDB, addPaymentTypeDB, getPaymentTypesDB, updatePaymentTypeDB, deletePaymentTypeDB, togglePaymentTypeDB, addStoreTableDB, getStoreTablesDB, updateStoreTableDB, deleteStoreTableDB, addCategoryDB, getCategoriesDB, updateCategoryDB, deleteCategoryDB, getQRMenuCodeDB, updateQRMenuCodeDB, changeCategoryVisibiltyDB, updateServiceChargeDB, getServiceChargeDB, setTenantSlugDB } = require("../services/settings.service");
 const path = require("path");
 const fs = require("fs");
+
+// ... existing code ...
+
+exports.setTenantSlug = async (req, res) => {
+    try {
+        const tenantId = req.user.tenant_id;
+        const tenantSlug = req.body.tenantSlug;
+
+        if (!tenantSlug) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("please_provide_tenant_slug")
+            });
+        }
+
+        // Basic validation for slug format (e.g., alphanumeric, hyphens allowed)
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tenantSlug)) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("invalid_tenant_slug_format") // Add this translation key
+            });
+        }
+
+        await setTenantSlugDB(tenantId, tenantSlug);
+
+        return res.status(200).json({
+            success: true,
+            message: req.__("tenant_slug_updated_successfully") // Add this translation key
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: req.__("something_went_wrong_try_later")
+        });
+    }
+};
 
 exports.getStoreDetails = async (req, res) => {
     try {
@@ -21,6 +58,7 @@ exports.getStoreDetails = async (req, res) => {
             uniqueQRCode: result?.unique_qr_code || null,
             isFeedbackEnabled: result?.is_feedback_enabled || false,
             uniqueId:result?.unique_id || null,
+            tenantSlug: result?.tenant_slug || null,
         };
 
         return res.status(200).json(storeSettings);

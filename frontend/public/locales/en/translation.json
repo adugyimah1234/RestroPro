@@ -1151,7 +1151,10 @@
   "superadmin_navbar": {
     "dashboard": "Dashboard",
     "tenants": "Tenants",
-    "reports": "Reports"
+    "reports": "Reports",
+    "settings": "Settings",
+    "api_key": "API Key",
+    "billing": "Billing"
   },
   "inventory": {
     "loading_text": "Please wait...",

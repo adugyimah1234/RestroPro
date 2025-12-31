@@ -137,3 +137,23 @@ export function useSuperAdminTenantSubscriptionHistory(tenantId) {
     APIURL,
   };
 }
+
+export async function updateTenantSubscription(id, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive) {
+  try {
+    const response = await ApiClient.patch(`${API}/superadmin/tenants/${id}/update-subscription`, {
+      subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive
+    });
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getTenantDetails(tenantId) {
+  try {
+    const response = await ApiClient.get(`${API}/superadmin/tenants/${tenantId}/subscription-history`);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}

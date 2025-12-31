@@ -15,7 +15,7 @@ import { CURRENCIES } from "../config/currencies.config";
 import { getImageURL } from "../helpers/ImageHelper";
 import toast from "react-hot-toast";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { getQRMenuLink } from "../helpers/QRMenuHelper";
+// import { getQRMenuLink } from "../helpers/QRMenuHelper";
 import { useTranslation } from "react-i18next";
 import LanguageChanger from "../components/LanguageChanger";
 import { useTheme } from "../contexts/ThemeContext";
@@ -24,7 +24,7 @@ export default function QRMenuPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const params = useParams();
-  const qrcode = params.qrcode;
+  const tenantIdentifier = params.tenantIdentifier;
   const {theme} = useTheme();
 
   const [searchParams] = useSearchParams();
@@ -46,12 +46,12 @@ export default function QRMenuPage() {
   });
 
   useEffect(() => {
-    _getQRMenu(qrcode);
-  }, [qrcode]);
+    _getQRMenu(tenantIdentifier);
+  }, [tenantIdentifier]);
 
-  const _getQRMenu = async (qrcode) => {
+  const _getQRMenu = async (identifier) => {
     try {
-      const res = await getQRMenuInit(qrcode, encryptedTableId);
+      const res = await getQRMenuInit(identifier, encryptedTableId);
 
       const storedCart = getCart();
       if (res.status == 200) {
@@ -110,7 +110,7 @@ export default function QRMenuPage() {
     );
   }
 
-  if (!qrcode) {
+  if (!tenantIdentifier) {
     return (
       <div className="w-full">
         <div className="container mx-auto px-4 flex h-screen items-center justify-center">
@@ -130,7 +130,8 @@ export default function QRMenuPage() {
     );
   }
 
-  const QR_MENU_LINK = getQRMenuLink(qrcode);
+  const QR_MENU_LINK = `${window.location.origin}/m/${storeSettings?.unique_qr_code || tenantIdentifier}`;
+
 
   const btnShare = async () => {
     const shareData = {
@@ -554,7 +555,7 @@ export default function QRMenuPage() {
           >
             <button
               onClick={() => {
-                navigate(`/m/${qrcode}/cart`, {
+                navigate(`/m/${tenantIdentifier}/cart`, {
                   state: { storeTable: state.storeTable, currency: currency, serviceCharge: serviceCharge },
                 });
               }}

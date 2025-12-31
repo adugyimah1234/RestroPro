@@ -61,6 +61,9 @@ import LanguagePage from "./views/LanguagePage";
 import InventoryPage from "./views/InventoryPage";
 import InventoryLogsPage from "./views/InventoryLogsPage";
 import InventoryDashboardPage from "./views/InventoryDashboard";
+import FoodPhotographyView from "./views/FoodPhotographyView";
+import SuperAdminGeminiSettings from "./views/SuperAdmin/SuperAdminGeminiSettings";
+import SuperAdminBillingPage from "./views/SuperAdmin/SuperAdminBillingPage";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import MyToaster from "./components/MyToaster";
 export default function App() {
@@ -87,13 +90,13 @@ export default function App() {
 
           <Route path="/dashboard/inactive-subscription" element={<InActiveSubscriptionPage />} />
 
-          <Route path="/m/:qrcode" element={<QRMenuPage />} />
-          <Route path="/m/:qrcode/cart" element={<CartPage />} />
+          <Route path="/m/:tenantIdentifier" element={<QRMenuPage />} />
+          <Route path="/m/:tenantIdentifier/cart" element={<CartPage />} />
           <Route path="/m/order-success" element={<OrderSuccessPage />} />
           <Route path="/m/order-failed" element={<OrderFailedPage />} />
 
-          <Route path="/m/:qrcode/feedback" element={<FeedbackCollectPage />} />
-          <Route path="/m/:qrcode/feedback/success" element={<FeedbackCollectSuccessPage />} />
+          <Route path="/m/:tenantIdentifier/feedback" element={<FeedbackCollectPage />} />
+          <Route path="/m/:tenantIdentifier/feedback/success" element={<FeedbackCollectSuccessPage />} />
 
 
           {/* app routes */}
@@ -274,6 +277,7 @@ export default function App() {
               />
               <Route path="tax-setup" element={<TaxSetupPage />} />
               <Route path="payment-types" element={<PaymentTypesPage />} />
+              <Route path="food-photography" element={<ScopeProtectedRoute scopes={[SCOPES.SETTINGS]}><FoodPhotographyView /></ScopeProtectedRoute>} />
 
             </Route>
           </Route>
@@ -291,6 +295,8 @@ export default function App() {
             <Route path="reports" element={<SuperAdminProtectedRoute><SuperAdminReportsPage /></SuperAdminProtectedRoute>} />
             <Route path="contact-support" element={<SuperAdminProtectedRoute><SuperAdminContactSupportPage /></SuperAdminProtectedRoute>} />
             <Route path="language" element={<LanguagePage />} />
+            <Route path="gemini-settings" element={<SuperAdminProtectedRoute><SuperAdminGeminiSettings /></SuperAdminProtectedRoute>} />
+            <Route path="billing" element={<SuperAdminProtectedRoute><SuperAdminBillingPage /></SuperAdminProtectedRoute>} />
           </Route>
           {/* superadmin routes */}
 
