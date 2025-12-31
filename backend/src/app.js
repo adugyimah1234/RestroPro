@@ -28,8 +28,10 @@ const dashboardRoutes = require("./routes/dashboard.routes")
 const reportsRoutes = require("./routes/reports.routes")
 const qrMenuRoutes = require("./routes/qrmenu.routes")
 const feedbackRoutes = require("./routes/feedback.routes")
-const superAdminRoutes = require("./routes/superadmin.routes")
+const superAdminRoutes = require("./routes/superadmin.routes");
+const superadminSettingsRoutes = require("./routes/superadminSettings.routes");
 const inventoryRoutes = require("./routes/inventory.routes");
+const foodPhotographyRoutes = require("./routes/foodPhotography.routes");
 // routes import
 
 
@@ -113,7 +115,9 @@ app.use("/api/v1/reports", reportsRoutes);
 app.use("/api/v1/qrmenu", qrMenuRoutes);
 app.use("/api/v1/feedback", feedbackRoutes);
 app.use("/api/v1/superadmin", superAdminRoutes);
+app.use("/api/v1/superadmin", superadminSettingsRoutes);
 app.use("/api/v1/inventory", inventoryRoutes);
+app.use("/api/v1/food-photography", foodPhotographyRoutes);
 // routes
 
 app.get("/", (req, res)=>{

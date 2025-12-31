@@ -40,7 +40,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
 
         {/* reservation */}
-        <div className="border rounded-3xl h-96 overflow-y-auto border-restro-border-green">
+        <div className="group border rounded-3xl h-96 overflow-y-auto border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 animate-fadeIn" style={{ animationDelay: '0.1s' }}>
           <div className= "py-5 px-6 border-b-0 backdrop-blur rounded-t-3xl sticky top-0">
             <Link to="/dashboard/reservation" className='font-bold'>{t('dashboard.reservations')}</Link>
           </div>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
         {/* reservation */}
 
         {/* popular items */}
-        <div className="border rounded-3xl h-96 overflow-y-auto border-restro-border-green">
+        <div className="group border rounded-3xl h-96 overflow-y-auto border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 animate-fadeIn" style={{ animationDelay: '0.2s' }}>
           <div className="py-5 px-6 border-b-0 backdrop-blur rounded-t-3xl sticky top-0">
             <h3 className='font-bold'>{t('dashboard.top_selling_items')}</h3>
           </div>
@@ -142,21 +142,21 @@ export default function DashboardPage() {
 
         <div className="flex flex-col gap-6">
           {/* items sold */}
-        <div className="border rounded-3xl h-28 py-5 px-6 border-restro-border-green backdrop-blur">
+        <div className="group border rounded-3xl h-28 py-5 px-6 border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 backdrop-blur animate-fadeIn" style={{ animationDelay: '0.3s' }}>
           <h3 className="font-bold">{t('dashboard.orders')}</h3>
           <p className="mt-2 text-4xl">{ordersCount||0}</p>
         </div>
         {/* items sold */}
 
         {/* new customers */}
-        <div className="border rounded-3xl h-28 py-5 px-6 border-restro-border-green backdrop-blur">
+        <div className="group border rounded-3xl h-28 py-5 px-6 border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 backdrop-blur animate-fadeIn" style={{ animationDelay: '0.4s' }}>
           <h3 className="font-bold">{t('dashboard.new_customers')}</h3>
           <p className="mt-2 text-4xl">{newCustomerCount||0}</p>
         </div>
         {/* new customers */}
 
         {/* repeated customers */}
-        <div className="border rounded-3xl h-28 py-5 px-6 border-restro-border-green backdrop-blur">
+        <div className="group border rounded-3xl h-28 py-5 px-6 border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 backdrop-blur animate-fadeIn" style={{ animationDelay: '0.5s' }}>
           <h3 className="font-bold">{t('dashboard.repeat_customers')}</h3>
           <p className="mt-2 text-4xl">{repeatedCustomerCount||0}</p>
         </div>
@@ -164,7 +164,7 @@ export default function DashboardPage() {
         </div>
 
         {/* banner: view more in reports */}
-        <Link to="/dashboard/reports" className = "block rounded-3xl py-5 px-6 transition active:scale-95 border bg-[url(/assets/circle_illustration.svg)] bg-no-repeat bg-right-bottom border-restro-border-green hover:bg-restro-button-hover">
+        <Link to="/dashboard/reports" className = "block rounded-3xl py-5 px-6 transition active:scale-95 border bg-[url(/assets/circle_illustration.svg)] bg-no-repeat bg-right-bottom border-restro-border-green hover:bg-restro-button-hover shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 animate-fadeIn" style={{ animationDelay: '0.6s' }}>
           <p>{t('dashboard.view_more_reports')} <IconChevronRight stroke={iconStroke}/></p>
         </Link>
         {/* banner: view more in reports */}
