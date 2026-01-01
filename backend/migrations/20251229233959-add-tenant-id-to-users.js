@@ -3,16 +3,19 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.addColumn('Users', 'tenant_id', {
-      type: Sequelize.INTEGER,
-      allowNull: true, // Assuming a user can exist without a tenant initially, or will be assigned later
-      references: {
-        model: 'tenants', // Name of the target table
-        key: 'id',        // Key in the target table that we're referencing
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'SET NULL', // Or 'CASCADE' depending on desired behavior
-    });
+    const tableInfo = await queryInterface.describeTable('Users');
+    if (!tableInfo.tenant_id) {
+      await queryInterface.addColumn('Users', 'tenant_id', {
+        type: Sequelize.INTEGER, // Changed to INTEGER
+        allowNull: true,
+        references: {
+          model: 'tenants', // Name of the target table (lowercase)
+          key: 'id',        // Key in the target table that we're referencing
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      });
+    }
   },
 
   async down (queryInterface, Sequelize) {
