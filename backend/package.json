@@ -30,11 +30,13 @@
     "nanoid": "^3.3.7",
     "nodemailer": "^7.0.12",
     "papaparse": "^5.5.3",
+    "paystack-api": "^2.0.6",
     "rotating-file-stream": "^3.2.3",
     "sequelize": "^6.35.2",
     "sequelize-cli": "^6.6.3",
     "socket.io": "^4.7.5",
     "stripe": "^15.9.0",
+    "uuid": "^13.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -10,4 +10,7 @@ router.get('/superadmin/subscription-plans/:id', isLoggedIn, isAuthenticated, is
 router.put('/superadmin/subscription-plans/:id', isLoggedIn, isAuthenticated, isSuperAdmin, subscriptionController.updatePlan);
 router.delete('/superadmin/subscription-plans/:id', isLoggedIn, isAuthenticated, isSuperAdmin, subscriptionController.deletePlan);
 
+// Route for initiating Paystack payment
+router.post('/superadmin/subscription-plans/initiate-payment', isLoggedIn, isAuthenticated, isSuperAdmin, subscriptionController.initiatePayment);
+
 module.exports = router;

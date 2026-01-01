@@ -1,4 +1,5 @@
 const SubscriptionPlan = require('../models/SubscriptionPlan');
+const paystack = require('../config/paystack.config'); // Import Paystack config
 
 exports.createSubscriptionPlan = async (name, amount, currency, duration_unit, duration_value, features, paystack_plan_id) => {
   try {
@@ -69,6 +70,22 @@ exports.deleteSubscriptionPlan = async (id) => {
     return { message: 'Subscription plan deleted successfully.' };
   } catch (error) {
     console.error('Error deleting subscription plan:', error);
+    throw error;
+  }
+};
+
+exports.initiatePaystackTransaction = async (amount, email, reference, metadata, callback_url) => {
+  try {
+    const response = await paystack.transaction.initialize({
+      amount: amount * 100, // Paystack expects amount in kobo (cents)
+      email,
+      reference,
+      metadata,
+      callback_url,
+    });
+    return response.data.authorization_url;
+  } catch (error) {
+    console.error('Error initiating Paystack transaction:', error);
     throw error;
   }
 };

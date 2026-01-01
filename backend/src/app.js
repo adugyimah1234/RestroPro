@@ -33,6 +33,7 @@ const superadminSettingsRoutes = require("./routes/superadminSettings.routes");
 const inventoryRoutes = require("./routes/inventory.routes");
 const foodPhotographyRoutes = require("./routes/foodPhotography.routes");
 const subscriptionRoutes = require("./routes/subscription.routes");
+const paystackRoutes = require("./routes/paystack.routes");
 // routes import
 
 
@@ -120,6 +121,7 @@ app.use("/api/v1/superadmin", superadminSettingsRoutes);
 app.use("/api/v1/inventory", inventoryRoutes);
 app.use("/api/v1/food-photography", foodPhotographyRoutes);
 app.use("/api/v1", subscriptionRoutes);
+app.use("/api/v1", paystackRoutes);
 // routes
 
 app.get("/", (req, res)=>{
