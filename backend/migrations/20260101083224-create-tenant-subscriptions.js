@@ -42,11 +42,11 @@ module.exports = {
         type: Sequelize.STRING, // e.g., 'active', 'inactive', 'cancelled'
         allowNull: false,
       },
-      flutterwave_subscription_id: {
+      paystack_subscription_id: { // Changed from flutterwave_subscription_id
         type: Sequelize.STRING,
         allowNull: true,
       },
-      flutterwave_customer_id: {
+      paystack_customer_id: { // Changed from flutterwave_customer_id
         type: Sequelize.STRING,
         allowNull: true,
       },

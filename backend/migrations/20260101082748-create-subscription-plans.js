@@ -34,9 +34,9 @@ module.exports = {
         type: Sequelize.JSON, // Store features as a JSON object or array
         allowNull: true,
       },
-      flutterwave_plan_id: {
+      paystack_plan_id: { // Changed from flutterwave_plan_id
         type: Sequelize.STRING,
-        allowNull: true, // Nullable if not all plans are recurring or managed by Flutterwave
+        allowNull: true, // Nullable if not all plans are recurring or managed by Paystack
       },
       createdAt: {
         type: Sequelize.DATE,
