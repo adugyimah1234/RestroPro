@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const sequelize = require('../../config/mysql.db'); // Adjust path as needed
+const sequelize = require('../config/mysql.db'); // Adjust path as needed
 
 const SubscriptionPlan = sequelize.define('SubscriptionPlan', {
   id: {

@@ -1,18 +1,20 @@
-const { CONFIG } = require("./index")
+const { CONFIG } = require("./index");
+const { Sequelize, DataTypes } = require('sequelize'); // Import Sequelize and DataTypes
 
-const mySqlPromise = require("mysql2/promise");
+// Initialize Sequelize
+const sequelize = new Sequelize(CONFIG.DATABASE_URL, {
+  dialect: 'mysql', // Specify the dialect
+  logging: false, // Disable logging SQL queries to console
+});
 
-const pool = 
-mySqlPromise.createPool(`${CONFIG.DATABASE_URL}?ssl={"rejectUnauthorized":false}&multipleStatements=true&dateStrings=false&waitForConnections=true&connectionLimit=99&enableKeepAlive=true&keepAliveInitialDelay=10000`);
+// Test the connection
+sequelize.authenticate()
+  .then(() => {
+    console.log('Sequelize connection has been established successfully.');
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database with Sequelize:', err);
+  });
 
-console.log(`DB Pool Created.`);
-
-exports.getMySqlPromiseConnection = async () => {
-  try {
-    return await pool.getConnection();
-  } catch (error) {
-    console.error("Pool Connection Error: =======>");
-    console.error(error);
-    throw error;
-  }
-};
+// Export the sequelize instance
+module.exports = sequelize;
