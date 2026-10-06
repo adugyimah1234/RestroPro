@@ -1,216 +1,163 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
-const { escape } = require("mysql2")
-exports.doCustomerExistDB = async (phone, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+const { Customer, sequelize, Op } = require("../models");
+exports.doCustomerExistDB = async (phone, tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT phone, name FROM customers
-        WHERE phone = ? AND tenant_id = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [phone, tenantId]);
-
-        return result.length > 0;
+        const count = await Customer.count({
+            where: { phone: phone, tenant_id: tenantId, branch_id: branchId }
+        });
+        return count > 0;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.addCustomerDB = async (phone, name, email, birthDate, gender, isMember, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.addCustomerDB = async (phone, name, email, birthDate, gender, isMember, tenantId, branchId) => {
     try {
-
-        const sql = `
-        INSERT INTO customers
-        (phone, name, email, birth_date, gender, is_member, tenant_id)
-        VALUES
-        (?, ?, ?, ?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [phone, name, email, birthDate, gender, isMember, tenantId]);
-
-        return result.insertId;
+        const customer = await Customer.create({
+            phone: phone,
+            name: name,
+            email: email,
+            birth_date: birthDate,
+            gender: gender,
+            is_member: isMember,
+            tenant_id: tenantId,
+            branch_id: branchId
+        });
+        return customer.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.getCustomersDB = async(page, perPage, sort, filter, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getCustomersDB = async(page, perPage, sort, filter, tenantId, branchId) => {
     try {
-
-        // Validate and sanitize inputs
         const currentPage = parseInt(page) || 1;
-        const limit = parseInt(perPage) || 10; // Define default page size
+        const limit = parseInt(perPage) || 10;
         const offset = (currentPage - 1) * limit;
-        const sortedBy = sort ? `ORDER BY ${escape(sort)}` : 'ORDER BY created_at DESC'; // Add sorting based on query param
 
-        // Build filter query based on 'filter' param (use appropriate library for complex filters)
-        const filterQuery = filter ? `WHERE (name LIKE '${filter}%' OR phone='${filter}') AND tenant_id=${tenantId}` : `WHERE tenant_id=${tenantId}`;
+        let order = [['created_at', 'DESC']];
+        if (sort) {
+            // Assuming sort is in format "columnName:direction" e.g., "name:ASC"
+            const [column, direction] = sort.split(':');
+            order = [[column, direction || 'ASC']];
+        }
 
-        const [customers] = await conn.execute(
-            `SELECT phone, name, email, birth_date, gender, is_member, created_at FROM customers ${filterQuery} ${sortedBy} LIMIT ${limit} OFFSET ${offset} ;`
-        );
+        let whereCondition = { tenant_id: tenantId, branch_id: branchId };
+        if (filter) {
+            whereCondition = {
+                ...whereCondition,
+                [Op.or]: [
+                    { name: { [Op.like]: `${filter}%` } },
+                    { phone: filter }
+                ]
+            };
+        }
 
-        // Prepared statement for total customer count
-        const [totalCustomers] = await conn.execute(
-            `SELECT COUNT(*) AS total FROM customers ${filterQuery} ;`
-        );
+        const { count, rows: customers } = await Customer.findAndCountAll({
+            where: whereCondition,
+            attributes: ['phone', 'name', 'email', 'birth_date', 'gender', 'is_member', 'created_at'],
+            order: order,
+            limit: limit,
+            offset: offset,
+        });
 
-        // Prepare response data
         const response = {
             customers,
             currentPage,
             perPage,
-            totalPages: Math.ceil(totalCustomers[0].total / limit),
-            totalCustomers: totalCustomers[0].total
+            totalPages: Math.ceil(count / limit),
+            totalCustomers: count
         };
-
-
 
         return response;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.getAllCustomersDB = async(tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getAllCustomersDB = async(tenantId, branchId) => {
     try {
-        const sql = `
-        SELECT phone, name, email, birth_date, gender, is_member, created_at FROM customers
-        WHERE
-            tenant_id = ?
-        ORDER BY
-            created_at DESC
-        `
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result;
+        const customers = await Customer.findAll({
+            where: { tenant_id: tenantId, branch_id: branchId },
+            attributes: ['phone', 'name', 'email', 'birth_date', 'gender', 'is_member', 'created_at'],
+            order: [['created_at', 'DESC']]
+        });
+        return customers;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.uploadBulkCustomersDB = async(customers) => {
-    const conn = await getMySqlPromiseConnection();
+exports.uploadBulkCustomersDB = async(customers, branchId) => {
     try {
-        const sql = `
-        INSERT INTO customers 
-        (phone, name, email, birth_date, gender, tenant_id) 
-        VALUES
-        ?
-        ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
-        email = VALUES(email),
-        birth_date = VALUES(birth_date),
-        gender = VALUES(gender);
-
-        `
-        const [result] = await conn.query(sql, [customers]);
-
-        return result;
-    } catch (error) {
-        console.error(error);
-        throw error;
-    } finally {
-        conn.release();
-    }
-};
-
-exports.getCustomerDB = async(phone, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-    try {
-
-        const [result] = await conn.execute(
-            `SELECT phone, name, email, birth_date, gender, is_member, created_at FROM customers
-            WHERE phone = ? AND tenant_id = ?
-            LIMIT 1;`,
-            [phone, tenantId]
-        );
-
-        return result[0];
-    } catch (error) {
-        console.error(error);
-        throw error;
-    } finally {
-        conn.release();
-    }
-}
-
-exports.searchCustomerDB = async(searchString, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-    try {
-
-        const [result] = await conn.execute(
-            `
-            SELECT phone, name, email, birth_date, gender, is_member, created_at FROM customers
-            WHERE (phone LIKE ? OR name LIKE ?) AND tenant_id = ?
-            LIMIT 10
-            ;`,
-            [`${searchString}%`, `%${searchString}%`, tenantId]
-        );
-
-        return result;
-    } catch (error) {
-        console.error(error);
-        throw error;
-    } finally {
-        conn.release();
-    }
-}
-
-exports.updateCustomerDB = async (phone, name, email, birthDate, gender, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-    try {
-
-        const sql = `
-        UPDATE customers
-        SET
-        name = ?, email = ?, birth_date = ?, gender = ?
-        WHERE phone = ? AND tenant_id = ?
-        `;
-
-        await conn.query(sql, [name, email, birthDate, gender, phone, tenantId]);
+        await Customer.bulkCreate(customers.map(customer => ({...customer, branch_id: branchId})), {
+            updateOnDuplicate: ['name', 'email', 'birth_date', 'gender']
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.deleteCustomerDB = async (phone, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getCustomerDB = async(phone, tenantId, branchId) => {
     try {
+        const customer = await Customer.findOne({
+            where: { phone: phone, tenant_id: tenantId, branch_id: branchId },
+            attributes: ['phone', 'name', 'email', 'birth_date', 'gender', 'is_member', 'created_at']
+        });
+        return customer;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
 
-        const sql = `
-        DELETE FROM customers
-        WHERE phone = ? AND tenant_id = ?;
-        `;
+exports.searchCustomerDB = async(searchString, tenantId, branchId) => {
+    try {
+        const customers = await Customer.findAll({
+            where: {
+                [Op.or]: [
+                    { phone: { [Op.like]: `${searchString}%` } },
+                    { name: { [Op.like]: `%${searchString}%` } }
+                ],
+                tenant_id: tenantId,
+                branch_id: branchId
+            },
+            attributes: ['phone', 'name', 'email', 'birth_date', 'gender', 'is_member', 'created_at'],
+            limit: 10
+        });
+        return customers;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
 
-        await conn.query(sql, [phone, tenantId]);
-
+exports.updateCustomerDB = async (phone, name, email, birthDate, gender, tenantId, branchId) => {
+    try {
+        await Customer.update(
+            { name: name, email: email, birth_date: birthDate, gender: gender },
+            { where: { phone: phone, tenant_id: tenantId, branch_id: branchId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
+    }
+};
+
+exports.deleteCustomerDB = async (phone, tenantId, branchId) => {
+    try {
+        await Customer.destroy({
+            where: { phone: phone, tenant_id: tenantId, branch_id: branchId }
+        });
+        return;
+    } catch (error) {
+        console.error(error);
+        throw error;
     }
 };

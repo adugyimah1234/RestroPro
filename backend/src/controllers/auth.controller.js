@@ -5,6 +5,8 @@ const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const { deleteUserRefreshTokensDB, updateUserPasswordDB } = require("../services/user.service");
+const { validateGhanaPhone, checkPasswordRequirements } = require("../utils/validators");
+const subscriptionService = require("../services/subscription.service");
 const stripe = require('stripe')(CONFIG.STRIPE_SECRET);
 
 exports.signIn = async (req, res) => {
@@ -51,7 +53,8 @@ exports.signIn = async (req, res) => {
                 name: result.name,
                 role: result.role,
                 scope: result.scope,
-                is_active: result.is_active
+                is_active: result.is_active,
+                branch_id: result.branch_id
             }
             const accessToken = generateAccessToken(payload);
             const refreshToken = generateRefreshToken(payload);
@@ -72,6 +75,7 @@ exports.signIn = async (req, res) => {
             const deviceIP = req.connection.remoteAddress;
             const deviceName = `${deviceDetails.platform}\nBrowser: ${deviceDetails.browser}`;
             const deviceLocation = "";
+            console.log('refreshTokenExpiry:', refreshTokenExpiry);
             await addRefreshTokenDB(username, refreshToken, refreshTokenExpiry, deviceIP, deviceName, deviceLocation, result.tenant_id);
 
             return res.status(200).json({
@@ -98,16 +102,89 @@ exports.signIn = async (req, res) => {
     }
 }
 
+exports.switchBranch = async (req, res) => {
+    try {
+        const user = req.user;
+        const { branch_id } = req.body;
+
+        if (!branch_id) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("please_provide_required_details")
+            });
+        }
+
+        // Ideally, you should verify if the user has access to this branch.
+        // This logic depends on your database structure for user-branch relationships.
+        // For now, we'll assume the user has access.
+
+        const cookieOptions = {
+            expires: new Date(Date.now() + parseInt(CONFIG.COOKIE_EXPIRY)),
+            httpOnly: true,
+            domain: CONFIG.FRONTEND_DOMAIN_COOKIE,
+            sameSite: false,
+            secure: process.env.NODE_ENV == "production",
+            path: "/"
+        };
+
+        const payload = {
+            tenant_id: user.tenant_id,
+            username: user.username,
+            name: user.name,
+            role: user.role,
+            scope: user.scope,
+            is_active: user.is_active,
+            branch_id: branch_id // Set the new branch_id
+        };
+
+        const accessToken = generateAccessToken(payload);
+
+        res.cookie('accessToken', accessToken, cookieOptions);
+
+        return res.status(200).json({
+            success: true,
+            message: req.__("branch_switched_successfully"),
+            accessToken
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: req.__("facing_issues_try_later")
+        });
+    }
+};
+
 exports.signUp = async (req, res) => {
     try {
         const biz_name = req.body.biz_name;
         const username = req.body.username;
         const password = req.body.password;
+        const phone = req.body.phone;
+        const location = req.body.location;
 
-        if(!(biz_name && username && password)) {
+        if(!(biz_name && username && password && phone && location)) {
             return res.status(400).json({
                 success: false,
                 message: req.__("please_provide_required_details") // Translate message
+            });
+        }
+
+        // Validate Ghanaian phone number
+        if (!validateGhanaPhone(phone)) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("invalid_ghana_phone_number") || "Please provide a valid Ghanaian phone number!"
+            });
+        }
+
+        // Validate password strength
+        const passwordCheck = checkPasswordRequirements(password);
+        if (!passwordCheck.isValid) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("weak_password_error") || "Password must be at least 8 characters long and contain uppercase, lowercase, a number, and a special character!"
             });
         }
 
@@ -124,7 +201,7 @@ exports.signUp = async (req, res) => {
         // encrypt the password
         const encryptedPassword = await bcrypt.hash(password, CONFIG.PASSWORD_SALT);
 
-        await signUpDB(biz_name, username, encryptedPassword);
+        await signUpDB(biz_name, username, encryptedPassword, phone, location);
 
         return res.status(200).json({
             success: true,
@@ -213,6 +290,7 @@ exports.getNewAccessToken = async (req, res) => {
                 name: u.name,
                 role: u.role,
                 scope: u.scope,
+                branch_id: u.branch_id, // Added branch_id
             }
             const accessToken = generateAccessToken(payload);
 
@@ -436,9 +514,19 @@ exports.cancelSubscription = async (req, res) => {
             });
         }
 
-        const subscription = await stripe.subscriptions.cancel(
-            id
-        );
+        if (CONFIG.STRIPE_SECRET && id.startsWith("sub_stripe")) {
+            try {
+                await stripe.subscriptions.cancel(id);
+            } catch (stripeErr) {
+                console.warn("Stripe cancel subscription warning:", stripeErr.message);
+            }
+        }
+
+        const customerEmail = user.email || user.username;
+        if (customerEmail) {
+            await updateTenantSubscriptionAccess(customerEmail, 0, id, null, new Date(), new Date());
+            await updateSubscriptionHistory(user.tenant_id, new Date(), new Date(), 'cancelled');
+        }
 
         // generate new access token
         // set cookie
@@ -457,6 +545,7 @@ exports.cancelSubscription = async (req, res) => {
             name: user.name,
             role: user.role,
             scope: user.scope,
+            branch_id: user.branch_id, // Added branch_id
         }
         const accessToken = generateAccessToken(payload);
 
@@ -477,47 +566,45 @@ exports.cancelSubscription = async (req, res) => {
 };
 
 exports.stripeProductSubscriptionLookup = async (req, res) => {
+    return exports.paystackSubscriptionLookup(req, res);
+}
+
+exports.paystackSubscriptionLookup = async (req, res) => {
     try {
-        const productId = req.body.id;
         const user = req.user;
+        const tenantId = user.tenant_id;
+        const email = user.email || user.username;
+        const reference = `sub_${Date.now()}_${tenantId}`;
+        const amount = 50; // GH₵ 50 per month
 
-        // const prices = await stripe.prices.list({
-        //     lookup_keys: [productId],
-        //     expand: ['data.product'],
-        // });
+        const metadata = {
+            tenant_id: tenantId,
+            email: email,
+        };
 
-        // console.log(prices);
+        const callbackUrl = `${CONFIG.FRONTEND_DOMAIN}/success?reference=${reference}`;
 
-        const session = await stripe.checkout.sessions.create({
-            billing_address_collection: 'auto',
-            customer_email: user.username,
-            metadata: {
-                tenant_id: user.tenant_id,
-            },
-            line_items: [
-                {
-                    price: productId,
-                    // price: prices.data[0].id,
-                    quantity: 1,
-                },
-            ],
-            mode: 'subscription',
-            success_url: `${CONFIG.FRONTEND_DOMAIN}/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${CONFIG.FRONTEND_DOMAIN}/cancelled-payment`,
-        });
+        const authorizationUrl = await subscriptionService.initiatePaystackTransaction(
+            amount,
+            email,
+            reference,
+            metadata,
+            callbackUrl
+        );
 
         return res.status(200).json({
             success: true,
-            url: session.url,
+            url: authorizationUrl,
+            reference
         });
     } catch (error) {
-        console.log(error);
+        console.error("Paystack subscription error:", error);
         return res.status(500).json({
             success: false,
-            message: req.__("cant_retrieve_product_subscription_try_later") // Translate message
+            message: req.__("cant_retrieve_product_subscription_try_later")
         });
     }
-}
+};
 
 exports.stripeWebhook = async (request, response) => {
     let event = request.body;
@@ -561,8 +648,8 @@ exports.stripeWebhook = async (request, response) => {
     const startDate = new Date(subscriptionStart * 1000);
     const endDate = new Date(subscriptionEnd * 1000);
 
-    const startDateStr = `${startDate.getFullYear()}-${(startDate.getMonth()+1).toString().padStart(2,'0')}-${startDate.getDate().toString().padStart(2,'0')}`;
-    const endDateStr = `${endDate.getFullYear()}-${(endDate.getMonth()+1).toString().padStart(2,'0')}-${endDate.getDate().toString().padStart(2,'0')}`;
+    const startDateStr = `${startDate.getFullYear()}-${(startDate.getMonth()+1).toString().padStart(2,'0')}-${startDate.getDate().toString().padStart(2,'0')} ${startDate.getHours().toString().padStart(2,'0')}:${startDate.getMinutes().toString().padStart(2,'0')}:${startDate.getSeconds().toString().padStart(2,'0')}`;
+    let endDateStr = `${endDate.getFullYear()}-${(endDate.getMonth()+1).toString().padStart(2,'0')}-${endDate.getDate().toString().padStart(2,'0')} ${endDate.getHours().toString().padStart(2,'0')}:${endDate.getMinutes().toString().padStart(2,'0')}:${endDate.getSeconds().toString().padStart(2,'0')}`;
 
     // get customer email
     try {

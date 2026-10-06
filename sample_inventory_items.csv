@@ -1,0 +1,21 @@
+title,quantity,unit,min_quantity_threshold
+Beef Patties,50,pcs,10
+Burger Buns,100,pcs,20
+Cheddar Cheese Slices,200,pcs,30
+Pizza Dough,40,kg,5
+Mozzarella Cheese,15,kg,3
+Tomato Sauce,20,L,5
+Romaine Lettuce,10,kg,2
+Parmesan Cheese,5,kg,1
+Spaghetti Pasta,25,kg,5
+Salmon Fillets,15,kg,3
+Chicken Breast,30,kg,5
+French Fries (Frozen),50,kg,10
+Coffee Beans,10,kg,2
+Whole Milk,30,L,5
+Fresh Oranges,25,kg,5
+Cooking Oil,50,L,10
+White Sugar,20,kg,5
+Black Pepper,2,kg,0.5
+Salt,10,kg,2
+Flour,40,kg,10

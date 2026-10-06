@@ -2,6 +2,7 @@ import React, { useContext } from 'react'
 import { Outlet } from "react-router-dom"
 import Navbar from '../components/Navbar'
 import AppBar from '../components/AppBar'
+import DialogStaffTour from '../components/DialogStaffTour'
 import { NavbarContext } from '../contexts/NavbarContext'
 
 export default function DashboardLayout() {
@@ -15,6 +16,7 @@ export default function DashboardLayout() {
         <AppBar />
         <Outlet />
       </div>
+      <DialogStaffTour />
     </div>
   )
 }

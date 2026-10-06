@@ -1,4 +1,5 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { Order, OrderItem, MenuItem, MenuItemVariant, MenuItemAddon, Tax, Customer, StoreTable, Invoice, InvoiceSequence, PaymentType, QrOrder, QrOrderItem, MenuItemRecipe, InventoryItem, sequelize, Op } = require("../models");
+const { getMySqlPromiseConnection } = require("../config/mysql.db");
 
 exports.createOrderDB = async (tenantId, cartItems, deliveryType, customerType, customerId, tableId, paymentStatus = 'pending', invoiceId=null, username = null) => {
   const conn = await getMySqlPromiseConnection();
@@ -168,189 +169,182 @@ exports.createOrderDB = async (tenantId, cartItems, deliveryType, customerType, 
     await conn.rollback();
     throw error;
   } finally {
-    conn.release();
+    conn.end();
   }
 };
 
 exports.getPOSQROrdersCountDB = async (tenantId) => {
-  const conn = await getMySqlPromiseConnection();
-
     try {
-      const sql = `
-        SELECT COUNT(*) AS total_orders FROM qr_orders
-        WHERE tenant_id = ? AND status NOT IN('completed', 'cancelled');
-      `;
-
-      const [result] = await conn.query(sql, [tenantId]);
-      return result[0].total_orders ?? 0;
+        const totalOrders = await QrOrder.count({
+            where: {
+                tenant_id: tenantId,
+                status: { [Op.notIn]: ['completed', 'cancelled'] },
+            },
+        });
+        return totalOrders ?? 0;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getPOSQROrdersDB = async (tenantId) => {
-  const conn = await getMySqlPromiseConnection();
-
     try {
-      const sql = `
-       SELECT
-        o.id,
-        o.date,
-        o.delivery_type,
-        o.customer_type,
-        o.customer_id,
-        c.name AS customer_name,
-        o.table_id,
-        st.table_title,
-        st.floor,
-        o.status,
-        o.payment_status
-      FROM
-        qr_orders o
-        LEFT JOIN customers c ON o.customer_id = c.phone AND c.tenant_id = o.tenant_id
-        LEFT JOIN store_tables st ON o.table_id = st.id
-      WHERE
-        o.status NOT IN('completed', 'cancelled')
-        AND o.tenant_id = ?
-      `;
+        const kitchenOrders = await QrOrder.findAll({
+            where: {
+                status: { [Op.notIn]: ['completed', 'cancelled'] },
+                tenant_id: tenantId,
+            },
+            include: [
+                {
+                    model: Customer,
+                    as: 'Customer',
+                    attributes: [['name', 'customer_name']],
+                    required: false, // LEFT JOIN
+                },
+                {
+                    model: StoreTable,
+                    as: 'StoreTable',
+                    attributes: [['table_title', 'table_title'], ['floor', 'floor']],
+                    required: false, // LEFT JOIN
+                },
+            ],
+            attributes: [
+                'id',
+                'date',
+                'delivery_type',
+                'customer_type',
+                'customer_id',
+                'table_id',
+                'status',
+                'payment_status',
+            ],
+        });
 
-      const [kitchenOrders] = await conn.query(sql, [tenantId]);
+        let kitchenOrdersItems = [];
+        let addons = [];
+        let recipeItems = [];
 
-      let kitchenOrdersItems = [];
-      let addons = [];
+        if (kitchenOrders.length > 0) {
+            const orderIds = kitchenOrders.map((o) => o.id);
+            kitchenOrdersItems = await QrOrderItem.findAll({
+                where: {
+                    order_id: { [Op.in]: orderIds },
+                },
+                include: [
+                    {
+                        model: MenuItem,
+                        as: 'MenuItem',
+                        attributes: [['title', 'item_title'], 'tax_id'],
+                        required: false, // LEFT JOIN
+                        include: [
+                            {
+                                model: Tax,
+                                as: 'Tax',
+                                attributes: [['title', 'tax_title'], ['rate', 'tax_rate'], ['type', 'tax_type']],
+                                required: false, // LEFT JOIN
+                            },
+                        ],
+                    },
+                    {
+                        model: MenuItemVariant,
+                        as: 'MenuItemVariant',
+                        attributes: [['title', 'variant_title'], ['price', 'variant_price']],
+                        required: false, // LEFT JOIN
+                    },
+                ],
+                attributes: [
+                    'id',
+                    'order_id',
+                    'item_id',
+                    'variant_id',
+                    'price',
+                    'quantity',
+                    'status',
+                    'date',
+                    'addons',
+                    'notes',
+                ],
+            });
 
-      if(kitchenOrders.length > 0) {
-        const orderIds = kitchenOrders.map(o=>o.id).join(",");
-        const sql2 = `
-          SELECT
-            oi.id,
-            oi.order_id,
-            oi.item_id,
-            mi.title AS item_title,
-            mi.tax_id,
-            t.title as tax_title,
-            t.rate as tax_rate,
-            t.type as tax_type,
-            oi.variant_id,
-            miv.title AS variant_title,
-            miv.price AS variant_price,
-            oi.price,
-            oi.quantity,
-            oi.status,
-            oi.date,
-            oi.addons,
-            oi.notes
-          FROM
-            qr_order_items oi
-            LEFT JOIN menu_items mi ON oi.item_id = mi.id
-            LEFT JOIN taxes t ON t.id = mi.tax_id
-            LEFT JOIN menu_item_variants miv ON oi.item_id = miv.item_id
-            AND oi.variant_id = miv.id
-          WHERE
-            oi.order_id IN (${orderIds})
-        `
-        const [kitchenOrdersItemsResult] = await conn.query(sql2);
-        kitchenOrdersItems = kitchenOrdersItemsResult;
+            const allAddonIds = [...new Set(kitchenOrdersItems.flatMap((o) => (o.addons ? JSON.parse(o.addons) : [])))];
+            if (allAddonIds.length > 0) {
+                addons = await MenuItemAddon.findAll({
+                    where: { id: { [Op.in]: allAddonIds } },
+                    attributes: ['id', 'item_id', 'title'],
+                });
+            }
 
-        const addonIds = [...new Set([...kitchenOrdersItems.flatMap((o)=>o.addons?JSON.parse(o?.addons):[])])].join(",");
-        const [addonsResult] = addonIds ? await conn.query(`SELECT id, item_id, title FROM menu_item_addons WHERE id IN (${addonIds});`):[]
-        addons = addonsResult;
-      }
+            recipeItems = await MenuItemRecipe.findAll({
+                where: { tenant_id: tenantId },
+                include: [
+                    { model: MenuItem, as: 'MenuItem', attributes: [['title', 'menu_item_title']] },
+                    { model: MenuItemVariant, as: 'MenuItemVariant', attributes: [['title', 'variant_title']] },
+                    { model: MenuItemAddon, as: 'MenuItemAddon', attributes: [['title', 'addon_title']] },
+                    {
+                        model: InventoryItem,
+                        as: 'Ingredient',
+                        attributes: [['title', 'ingredient_title'], 'unit', ['quantity', 'current_quantity'], 'min_quantity_threshold'],
+                    },
+                ],
+                attributes: [
+                    'id',
+                    'menu_item_id',
+                    'variant_id',
+                    'addon_id',
+                    'inventory_item_id',
+                    ['quantity', 'recipe_quantity'],
+                ],
+            });
+        }
 
-      // Get recipe items for all menu items
-      const recipeSql = `
-        SELECT
-          mir.id,
-          mir.menu_item_id,
-          mir.variant_id,
-          mir.addon_id,
-          mir.inventory_item_id,
-          mi.title AS menu_item_title,
-          v.title AS variant_title,
-          a.title AS addon_title,
-          ii.title AS ingredient_title,
-          ii.unit,
-          ii.quantity as current_quantity,
-          ii.min_quantity_threshold,
-          mir.quantity as recipe_quantity
-        FROM
-          menu_item_recipes mir
-        LEFT JOIN menu_items mi ON mir.menu_item_id = mi.id
-        LEFT JOIN menu_item_variants v ON mir.variant_id = v.id
-        LEFT JOIN menu_item_addons a ON mir.addon_id = a.id
-        LEFT JOIN inventory_items ii ON mir.inventory_item_id = ii.id
-        WHERE mir.tenant_id = ?
-      `;
+        // Attach recipeItems to each kitchenOrderItem
+        kitchenOrdersItems = kitchenOrdersItems.map(oi => {
+            const relevantRecipeItems = recipeItems.filter(ri =>
+                ri.menu_item_id === oi.item_id &&
+                (ri.variant_id == 0 || ri.variant_id === oi.variant_id) &&
+                (ri.addon_id === 0 || oi.addons?.includes(ri.addon_id))
+            );
+            return {
+                ...oi.toJSON(), // Convert to plain object to add new properties
+                recipeItems: relevantRecipeItems
+            };
+        });
 
-      const [recipeItemsResult] = await conn.query(recipeSql, [tenantId]);
-      recipeItems = recipeItemsResult;
-
-      // Attach recipeItems to each kitchenOrderItem
-      kitchenOrdersItems = kitchenOrdersItems.map(oi => {
-        const relevantRecipeItems = recipeItems.filter(ri =>
-          ri.menu_item_id === oi.item_id &&
-          (ri.variant_id == 0 || ri.variant_id === oi.variant_id) &&
-          (ri.addon_id === 0 || oi.addons?.includes(ri.addon_id))
-        );
         return {
-          ...oi,
-          recipeItems: relevantRecipeItems
+            kitchenOrders: kitchenOrders.map(order => order.get({ plain: true })),
+            kitchenOrdersItems,
+            addons: addons.map(addon => addon.get({ plain: true })),
         };
-      });
-
-      return {
-        kitchenOrders,
-        kitchenOrdersItems,
-        addons
-      }
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateQROrderStatusDB = async (tenantId, orderId, status) => {
-  const conn = await getMySqlPromiseConnection();
-
-  try {
-    const sql = `
-      UPDATE qr_orders
-      SET status = ?
-      WHERE tenant_id = ? AND id = ?;
-    `;
-
-    const [result] = await conn.query(sql, [status, tenantId, orderId]);
-    return
-  } catch (error) {
-      console.error(error);
-      throw error;
-  } finally {
-      conn.release();
-  }
+    try {
+        await QrOrder.update(
+            { status: status },
+            { where: { tenant_id: tenantId, id: orderId } }
+            );
+        return;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
 };
 
 
 exports.cancelAllQROrdersDB = async (tenantId, status) => {
-  const conn = await getMySqlPromiseConnection();
-
-  try {
-    const sql = `
-      UPDATE qr_orders
-      SET status = ?
-      WHERE tenant_id = ?;
-    `;
-
-    const [result] = await conn.query(sql, [status, tenantId]);
-    return;
-  } catch (error) {
-      console.error(error);
-      throw error;
-  } finally {
-      conn.release();
-  }
+    try {
+        await QrOrder.update(
+            { status: status },
+            { where: { tenant_id: tenantId } }
+        );
+        return;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
 };

@@ -1,0 +1,19 @@
+table_title,floor,seating_capacity
+T-01,Ground Floor,2
+T-02,Ground Floor,4
+T-03,Ground Floor,4
+T-04,Ground Floor,6
+VIP-01,Ground Floor,8
+T-101,1st Floor,2
+T-102,1st Floor,4
+T-103,1st Floor,4
+T-104,1st Floor,6
+VIP-101,1st Floor,10
+R-01,Rooftop,2
+R-02,Rooftop,4
+R-03,Rooftop,4
+R-04,Rooftop,6
+P-01,Patio,2
+P-02,Patio,4
+P-03,Patio,4
+P-04,Patio,6

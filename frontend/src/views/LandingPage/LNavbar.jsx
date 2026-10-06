@@ -12,27 +12,28 @@ export default function LNavbar() {
   };
 
   return (
-    <div className="w-full backdrop-blur-md sticky top-0 bg-white/80 lg:px-12">
+    <div className="w-full backdrop-blur-md sticky top-0 bg-white/80 lg:px-12 z-50">
       <input id="my-drawer" type="checkbox" className="drawer-toggle" />
       <div className="flex items-center justify-between gap-4 container mx-auto px-4 py-3">
-        <div>
-          <img src={Logo} alt="logo" className="h-12" />
+        <div className="flex items-center gap-2">
+          <img src={Logo} alt="tervoraRestore logo" className="h-10" />
+          <span className="font-bold text-xl text-slate-900 tracking-tight">tervoraRestore</span>
         </div>
         <div className="items-center hidden lg:flex">
           <a
-            className="hover:bg-gray-100 text-gray-700 rounded-full px-4 py-2 transition active:scale-95"
+            className="hover:bg-slate-100 text-slate-700 rounded-full px-4 py-2 transition active:scale-95"
             href="#features"
           >
             {t("landing_page.features")}
           </a>
           <a
-            className="hover:bg-gray-100 text-gray-700 rounded-full px-4 py-2 transition active:scale-95"
+            className="hover:bg-slate-100 text-slate-700 rounded-full px-4 py-2 transition active:scale-95"
             href="#pricing"
           >
             {t("landing_page.pricing")}
           </a>
           <a
-            className="hover:bg-gray-100 text-gray-700 rounded-full px-4 py-2 transition active:scale-95"
+            className="hover:bg-slate-100 text-slate-700 rounded-full px-4 py-2 transition active:scale-95"
             href="#contact"
           >
             {t("landing_page.contact")}
@@ -40,13 +41,13 @@ export default function LNavbar() {
         </div>
         <div className="hidden lg:flex items-center gap-4">
           <Link
-            className="hover:bg-gray-100 text-restro-green-dark rounded-full px-4 py-2 transition active:scale-95"
+            className="hover:bg-slate-100 text-slate-900 font-semibold rounded-full px-4 py-2 transition active:scale-95"
             to="/login"
           >
             {t("landing_page.login")}
           </Link>
           <Link
-            className="hover:bg-[#70B56A] bg-[#70B56A] text-white rounded-full px-4 py-2 transition active:scale-95"
+            className="bg-blue-900 hover:bg-slate-900 text-white font-medium rounded-full px-5 py-2 transition active:scale-95 shadow-sm"
             to="/register"
           >
             {t("landing_page.get_started")}
@@ -58,7 +59,7 @@ export default function LNavbar() {
           <label
             aria-label="open sidebar"
             htmlFor="my-drawer"
-            className="w-12 h-12 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-500 transition"
+            className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 transition"
           >
             <IconMenu />
           </label>
@@ -67,20 +68,20 @@ export default function LNavbar() {
       </div>
 
       {/* mobile menu */}
-      <div className="drawer-side">
+      <div className="drawer-side z-50">
         <label
           htmlFor="my-drawer"
           aria-label="close sidebar"
-          className="drawer-overlay "
+          className="drawer-overlay"
         ></label>
         <ul className="menu p-4 w-80 min-h-full text-base-content bg-white">
-          {/* Sidebar content here */}
-          <div className="mb-8">
-            <img src={Logo} alt="logo" className="h-12" />
+          <div className="mb-8 flex items-center gap-2">
+            <img src={Logo} alt="tervoraRestore logo" className="h-10" />
+            <span className="font-bold text-xl text-slate-900">tervoraRestore</span>
           </div>
           <li onClick={closeDrawer}>
             <a
-              className="hover:bg-gray-100 text-gray-700 rounded-full px-4 py-2 transition active:scale-95"
+              className="hover:bg-slate-100 text-slate-700 rounded-full px-4 py-2 transition active:scale-95"
               href="#features"
             >
               {t("landing_page.features")}
@@ -88,7 +89,7 @@ export default function LNavbar() {
           </li>
           <li onClick={closeDrawer}>
             <a
-              className="hover:bg-gray-100 text-gray-700 rounded-full px-4 py-2 transition active:scale-95"
+              className="hover:bg-slate-100 text-slate-700 rounded-full px-4 py-2 transition active:scale-95"
               href="#pricing"
             >
               {t("landing_page.pricing")}
@@ -96,7 +97,7 @@ export default function LNavbar() {
           </li>
           <li onClick={closeDrawer}>
             <a
-              className="hover:bg-gray-100 text-gray-700 rounded-full px-4 py-2 transition active:scale-95"
+              className="hover:bg-slate-100 text-slate-700 rounded-full px-4 py-2 transition active:scale-95"
               href="#contact"
             >
               {t("landing_page.contact")}
@@ -104,7 +105,7 @@ export default function LNavbar() {
           </li>
           <li onClick={closeDrawer} className="mt-8">
             <Link
-              className="hover:bg-gray-200 border text-center block text-restro-green-dark rounded-full px-4 py-2 transition active:scale-95"
+              className="hover:bg-slate-100 border text-center block text-slate-900 font-semibold rounded-full px-4 py-2 transition active:scale-95"
               to="/login"
             >
               {t("landing_page.login")}
@@ -112,7 +113,7 @@ export default function LNavbar() {
           </li>
           <li onClick={closeDrawer} className="mt-4">
             <Link
-              className="hover:bg-[#70B56A] block text-center bg-[#70B56A] text-white rounded-full px-4 py-2 transition active:scale-95"
+              className="bg-blue-900 hover:bg-slate-900 block text-center text-white font-medium rounded-full px-4 py-2 transition active:scale-95"
               to="/register"
             >
               {t("landing_page.get_started")}

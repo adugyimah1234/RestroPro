@@ -4,20 +4,25 @@ const path = require("path")
 const fs = require("fs");
 const Papa = require("papaparse");
 const { getInventoryItemsDB } = require("../services/inventory.service");
+const { Category } = require("../models");
 
 exports.addMenuItem = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const {title, description, price, netPrice, taxId, categoryId} = req.body;
 
-        if(!(title && price)) {
+        if (!title || price === undefined || price === null || price === "" || isNaN(Number(price))) {
             return res.status(400).json({
                 success: false,
                 message: req.__("menu_item_provide_required_details") // Translate message
             });
         }
 
-        const menuItemId = await addMenuItemDB(title, description, price, netPrice, taxId, categoryId, tenantId);
+        const numericPrice = Number(price);
+        const numericNetPrice = (netPrice !== undefined && netPrice !== null && netPrice !== "" && !isNaN(Number(netPrice))) ? Number(netPrice) : null;
+
+        const menuItemId = await addMenuItemDB(title, description, numericPrice, numericNetPrice, taxId, categoryId, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -36,17 +41,21 @@ exports.addMenuItem = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const id = req.params.id;
         const {title, description, price, netPrice, taxId, categoryId} = req.body;
 
-        if(!(title && price)) {
+        if (!title || price === undefined || price === null || price === "" || isNaN(Number(price))) {
             return res.status(400).json({
                 success: false,
                 message: req.__("menu_item_provide_required_details") // Translate message
             });
         }
 
-        await updateMenuItemDB(id, title, description, price, netPrice, taxId, categoryId, tenantId);
+        const numericPrice = Number(price);
+        const numericNetPrice = (netPrice !== undefined && netPrice !== null && netPrice !== "" && !isNaN(Number(netPrice))) ? Number(netPrice) : null;
+
+        await updateMenuItemDB(id, title, description, numericPrice, numericNetPrice, taxId, categoryId, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -64,6 +73,7 @@ exports.updateMenuItem = async (req, res) => {
 exports.uploadMenuItemPhoto = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const id = req.params.id;
 
         const file = req.files.image;
@@ -77,7 +87,7 @@ exports.uploadMenuItemPhoto = async (req, res) => {
         const imageURL = `/public/${tenantId}/${id}`;
 
         await file.mv(imagePath);
-        await updateMenuItemImageDB(id, imageURL, tenantId);
+        await updateMenuItemImageDB(id, imageURL, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -96,12 +106,13 @@ exports.uploadMenuItemPhoto = async (req, res) => {
 exports.removeMenuItemPhoto = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const id = req.params.id;
         const imagePath = path.join(__dirname, `../../public/${tenantId}/`) + id;
 
         fs.unlinkSync(imagePath)
 
-        await updateMenuItemImageDB(id, null, tenantId);
+        await updateMenuItemImageDB(id, null, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -119,9 +130,10 @@ exports.removeMenuItemPhoto = async (req, res) => {
 exports.deleteMenuItem = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const id = req.params.id;
 
-        await deleteMenuItemDB(id, tenantId);
+        await deleteMenuItemDB(id, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -139,10 +151,11 @@ exports.deleteMenuItem = async (req, res) => {
 exports.changeMenuItemVisibility = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const id = req.params.id;
         const isEnabled = req.body.isEnabled;
 
-        await changeMenuItemVisibilityDB(id, isEnabled, tenantId);
+        await changeMenuItemVisibilityDB(id, isEnabled, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -160,10 +173,11 @@ exports.changeMenuItemVisibility = async (req, res) => {
 exports.getAllMenuItems = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const [menuItems, addons, variants] = await Promise.all([
-            getAllMenuItemsDB(tenantId),
-            getAllAddonsDB(tenantId),
-            getAllVariantsDB(tenantId)
+            getAllMenuItemsDB(tenantId, branchId),
+            getAllAddonsDB(tenantId, branchId),
+            getAllVariantsDB(tenantId, branchId)
         ]);
 
         const formattedMenuItems = menuItems.map(item => {
@@ -190,14 +204,15 @@ exports.getAllMenuItems = async (req, res) => {
 exports.getMenuItem = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const id = req.params.id;
 
         const [menuItem, addons, variants, recipeItems, inventoryItemsResult] = await Promise.all([
-            getMenuItemDB(id, tenantId),
-            getMenuItemAddonsDB(id, tenantId),
-            getMenuItemVariantsDB(id, tenantId),
-            getRecipeItemsDB(id, tenantId), //Menu item Recipe Items
-            getInventoryItemsDB('all' /**status */, tenantId)
+            getMenuItemDB(id, tenantId, branchId),
+            getMenuItemAddonsDB(id, tenantId, branchId),
+            getMenuItemVariantsDB(id, tenantId, branchId),
+            getRecipeItemsDB(id, tenantId, branchId), //Menu item Recipe Items
+            getInventoryItemsDB('all' /**status */, tenantId, branchId)
         ]);
 
         const formattedMenuItem = {
@@ -223,6 +238,7 @@ exports.getMenuItem = async (req, res) => {
 exports.addMenuItemAddon = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
         const {title, price} = req.body;
 
@@ -233,7 +249,7 @@ exports.addMenuItemAddon = async (req, res) => {
             });
         }
 
-        const menuItemAddonId = await addMenuItemAddonDB(itemId, title, price, tenantId);
+        const menuItemAddonId = await addMenuItemAddonDB(itemId, title, price, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -251,6 +267,7 @@ exports.addMenuItemAddon = async (req, res) => {
 exports.updateMenuItemAddon = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
         const addonId = req.params.addonId;
         const {title, price} = req.body;
@@ -262,7 +279,7 @@ exports.updateMenuItemAddon = async (req, res) => {
             });
         }
 
-        await updateMenuItemAddonDB(itemId, addonId, title, price, tenantId);
+        await updateMenuItemAddonDB(itemId, addonId, title, price, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -278,10 +295,11 @@ exports.updateMenuItemAddon = async (req, res) => {
 exports.deleteMenuItemAddon = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
         const addonId = req.params.addonId;
 
-        await deleteMenuItemAddonDB(itemId, addonId, tenantId);
+        await deleteMenuItemAddonDB(itemId, addonId, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -298,9 +316,10 @@ exports.deleteMenuItemAddon = async (req, res) => {
 exports.getMenuItemAddons = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
 
-        const itemAddons = await getMenuItemAddonsDB(itemId, tenantId);
+        const itemAddons = await getMenuItemAddonsDB(itemId, tenantId, branchId);
 
         if(itemAddons.length == 0) {
             return res.status(404).json({
@@ -321,7 +340,8 @@ exports.getMenuItemAddons = async (req, res) => {
 exports.getAllAddons = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
-        const addons = await getAllAddonsDB(tenantId);
+        const branchId = req.user.branch_id;
+        const addons = await getAllAddonsDB(tenantId, branchId);
 
         return res.status(200).json(addons);
     } catch (error) {
@@ -339,6 +359,7 @@ exports.getAllAddons = async (req, res) => {
 exports.addMenuItemVariant = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
         const {title, price} = req.body;
 
@@ -349,7 +370,7 @@ exports.addMenuItemVariant = async (req, res) => {
             });
         }
 
-        const menuItemVariantId = await addMenuItemVariantDB(itemId, title, price, tenantId);
+        const menuItemVariantId = await addMenuItemVariantDB(itemId, title, price, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -367,6 +388,7 @@ exports.addMenuItemVariant = async (req, res) => {
 exports.updateMenuItemVariant = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
         const variantId = req.params.variantId;
         const {title, price} = req.body;
@@ -378,7 +400,7 @@ exports.updateMenuItemVariant = async (req, res) => {
             });
         }
 
-        await updateMenuItemVariantDB(itemId, variantId, title, price, tenantId);
+        await updateMenuItemVariantDB(itemId, variantId, title, price, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -395,10 +417,11 @@ exports.updateMenuItemVariant = async (req, res) => {
 exports.deleteMenuItemVariant = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
         const variantId = req.params.variantId;
 
-        await deleteMenuItemVariantDB(itemId, variantId, tenantId);
+        await deleteMenuItemVariantDB(itemId, variantId, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -415,9 +438,10 @@ exports.deleteMenuItemVariant = async (req, res) => {
 exports.getMenuItemVariants = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
 
-        const itemVariants = await getMenuItemVariantsDB(itemId, tenantId);
+        const itemVariants = await getMenuItemVariantsDB(itemId, tenantId, branchId);
 
         if(itemVariants.length == 0) {
             return res.status(404).json({
@@ -438,7 +462,8 @@ exports.getMenuItemVariants = async (req, res) => {
 exports.getAllVariants = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
-        const allVariants = await getAllVariantsDB(tenantId);
+        const branchId = req.user.branch_id;
+        const allVariants = await getAllVariantsDB(tenantId, branchId);
 
         return res.status(200).json(allVariants);
     } catch (error) {
@@ -456,6 +481,7 @@ exports.getAllVariants = async (req, res) => {
 exports.addRecipeItem = async (req, res) => {
     try {
       const tenantId = req.user.tenant_id;
+      const branchId = req.user.branch_id;
       const menuItemId = req.params.id;
       const { variantId, addonId, ingredientId, quantity } = req.body;
 
@@ -473,7 +499,7 @@ exports.addRecipeItem = async (req, res) => {
         });
       }
 
-      const recipeItemId = await addRecipeItemDB(menuItemId, variantId, addonId, ingredientId, quantity, tenantId);
+      const recipeItemId = await addRecipeItemDB(menuItemId, variantId, addonId, ingredientId, quantity, tenantId, branchId);
 
       return res.status(200).json({
         success: true,
@@ -500,6 +526,7 @@ exports.addRecipeItem = async (req, res) => {
   exports.updateRecipeItem = async (req, res) => {
     try {
       const tenantId = req.user.tenant_id;
+      const branchId = req.user.branch_id;
       const menuItemId = req.params.id;
       const recipeItemId = req.params.recipeItemId;
       const { variantId, addonId, ingredientId, quantity } = req.body;
@@ -518,7 +545,7 @@ exports.addRecipeItem = async (req, res) => {
         });
       }
 
-      await updateRecipeItemDB(recipeItemId, menuItemId, variantId, addonId, ingredientId, quantity, tenantId);
+      await updateRecipeItemDB(recipeItemId, menuItemId, variantId, addonId, ingredientId, quantity, tenantId, branchId);
 
       return res.status(200).json({
         success: true,
@@ -545,9 +572,10 @@ exports.addRecipeItem = async (req, res) => {
   exports.getRecipeItems = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const menuItemId = req.params.id;
 
-        const recipeItems = await getRecipeItemsDB(menuItemId, tenantId);
+        const recipeItems = await getRecipeItemsDB(menuItemId, tenantId, branchId);
 
         return res.status(200).json(recipeItems);
     } catch (error) {
@@ -562,12 +590,13 @@ exports.addRecipeItem = async (req, res) => {
  exports.deleteRecipeItem = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const itemId = req.params.id;
         const recipeItemId = req.params.recipeItemId;
 
         const {variant = null, addon = null} = req.query;
 
-        await deleteRecipeItemDB(itemId, recipeItemId, variant, addon, tenantId);
+        await deleteRecipeItemDB(itemId, recipeItemId, variant, addon, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -587,6 +616,7 @@ exports.addRecipeItem = async (req, res) => {
 exports.bulkUploadMenuItems = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
         if (!req.files || Object.keys(req.files).length === 0) {
             return res.status(400).json({
@@ -597,86 +627,175 @@ exports.bulkUploadMenuItems = async (req, res) => {
 
         const file = req.files.file; // Assuming the file input name is 'file'
 
-        if (file.mimetype !== 'text/csv') {
+        const isCsvFile = (file.name && file.name.toLowerCase().endsWith('.csv')) ||
+            ['text/csv', 'text/plain', 'application/vnd.ms-excel', 'text/comma-separated-values', 'application/csv'].includes(file.mimetype);
+
+        if (!isCsvFile) {
             return res.status(400).json({
                 success: false,
                 message: req.__("only_csv_files_allowed")
             });
         }
 
-        const csvString = file.data.toString('utf8');
+        let csvString = "";
+        if (file.tempFilePath && fs.existsSync(file.tempFilePath)) {
+            csvString = fs.readFileSync(file.tempFilePath, 'utf8');
+        } else if (file.data && file.data.length > 0) {
+            csvString = file.data.toString('utf8');
+        }
 
-        Papa.parse(csvString, {
-            header: true,
-            skipEmptyLines: true,
-            complete: async (results) => {
-                const menuItemsToInsert = [];
-                const errors = [];
+        csvString = csvString.replace(/^\uFEFF/, '');
 
-                for (const [index, row] of results.data.entries()) {
-                    const lineNumber = index + 2; // +1 for header, +1 for 0-based index
+        if (file.tempFilePath && fs.existsSync(file.tempFilePath)) {
+            try {
+                fs.unlinkSync(file.tempFilePath);
+            } catch (e) {
+                // ignore unlink cleanup error
+            }
+        }
 
-                    const title = row.title;
-                    const description = row.description || null;
-                    const price = parseFloat(row.price);
-                    const netPrice = parseFloat(row.net_price);
-                    const taxId = row.tax_id ? parseInt(row.tax_id) : null;
-                    const categoryId = row.category_id ? parseInt(row.category_id) : null;
+        if (!csvString.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("no_valid_menu_items_found_in_file"),
+                errors: []
+            });
+        }
 
-                    if (!title || isNaN(price) || isNaN(netPrice)) {
-                        errors.push({
-                            line: lineNumber,
-                            message: req.__("menu_item_bulk_upload_missing_required_fields")
+        const results = await new Promise((resolve, reject) => {
+            Papa.parse(csvString, {
+                header: true,
+                skipEmptyLines: 'greedy',
+                transformHeader: (h) => h.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[\s\-]+/g, '_'),
+                complete: (results) => resolve(results),
+                error: (error) => reject(error)
+            });
+        });
+
+        // Fetch existing categories for tenant
+        const existingCategories = await Category.findAll({
+            where: { tenant_id: tenantId }
+        });
+
+        // Map category title (lowercase) -> Category ID and Category ID -> Category ID
+        const categoryMap = new Map();
+        existingCategories.forEach(cat => {
+            if (cat.title) {
+                categoryMap.set(cat.title.trim().toLowerCase(), cat.id);
+            }
+            categoryMap.set(String(cat.id), cat.id);
+        });
+
+        const menuItemsToInsert = [];
+        const errors = [];
+
+        for (const [index, row] of results.data.entries()) {
+            const lineNumber = index + 2; // +1 for header, +1 for 0-based index
+
+            // Clean row keys
+            const normalizedRow = {};
+            for (const key of Object.keys(row)) {
+                const cleanKey = key.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[\s\-]+/g, '_');
+                normalizedRow[cleanKey] = row[key];
+            }
+
+            const title = (normalizedRow.title || normalizedRow.item_title || normalizedRow.name || "").toString().trim();
+            const description = (normalizedRow.description || normalizedRow.desc) ? String(normalizedRow.description || normalizedRow.desc).trim() : null;
+
+            const rawPrice = normalizedRow.price ?? normalizedRow.item_price;
+            const price = (rawPrice !== undefined && rawPrice !== null && String(rawPrice).trim() !== "")
+                ? parseFloat(String(rawPrice).replace(/[^0-9.-]+/g, ''))
+                : NaN;
+
+            const rawNetPrice = normalizedRow.net_price ?? normalizedRow.netprice ?? normalizedRow.item_net_price;
+            const netPrice = (rawNetPrice !== undefined && rawNetPrice !== null && String(rawNetPrice).trim() !== "" && !isNaN(parseFloat(String(rawNetPrice).replace(/[^0-9.-]+/g, ''))))
+                ? parseFloat(String(rawNetPrice).replace(/[^0-9.-]+/g, ''))
+                : null;
+
+            const taxId = (normalizedRow.tax_id && !isNaN(parseInt(normalizedRow.tax_id))) ? parseInt(normalizedRow.tax_id) : null;
+
+            // Handle Category: check category title first, then category_id
+            let categoryId = null;
+            const categoryInput = (normalizedRow.category || normalizedRow.category_name || normalizedRow.category_title || "").toString().trim();
+            const rawCategoryId = (normalizedRow.category_id && !isNaN(parseInt(normalizedRow.category_id))) ? parseInt(normalizedRow.category_id) : null;
+
+            if (categoryInput) {
+                const categoryKey = categoryInput.toLowerCase();
+                if (categoryMap.has(categoryKey)) {
+                    categoryId = categoryMap.get(categoryKey);
+                } else {
+                    // Auto-create category if it doesn't exist yet
+                    try {
+                        const newCategory = await Category.create({
+                            title: categoryInput,
+                            tenant_id: tenantId,
+                            is_enabled: true
                         });
-                        continue;
+                        categoryId = newCategory.id;
+                        categoryMap.set(categoryKey, newCategory.id);
+                        categoryMap.set(String(newCategory.id), newCategory.id);
+                    } catch (catErr) {
+                        console.error("Error auto-creating category during bulk upload:", catErr);
                     }
-
-                    menuItemsToInsert.push({
-                        title,
-                        description,
-                        price,
-                        netPrice,
-                        taxId,
-                        categoryId,
-                        tenantId
-                    });
                 }
-
-                if (menuItemsToInsert.length === 0) {
-                    return res.status(400).json({
-                        success: false,
-                        message: req.__("no_valid_menu_items_found_in_file"),
-                        errors: errors
-                    });
-                }
-
-                try {
-                    const insertedCount = await bulkAddMenuItemsDB(menuItemsToInsert);
-                    return res.status(200).json({
-                        success: true,
-                        message: req.__("menu_items_bulk_uploaded_successfully", { count: insertedCount }),
-                        errors: errors
-                    });
-                } catch (dbError) {
-                    console.error("Database error during bulk upload:", dbError);
-                    errors.push({
-                        line: "N/A",
-                        message: req.__("database_error_during_bulk_upload")
-                    });
-                    return res.status(500).json({
-                        success: false,
-                        message: req.__("something_went_wrong_try_later"),
-                        errors: errors
-                    });
+            } else if (rawCategoryId) {
+                if (categoryMap.has(String(rawCategoryId))) {
+                    categoryId = rawCategoryId;
                 }
             }
-        });
+
+            if (!title || isNaN(price) || price < 0) {
+                errors.push({
+                    line: lineNumber,
+                    message: req.__("menu_item_bulk_upload_missing_required_fields")
+                });
+                continue;
+            }
+
+            menuItemsToInsert.push({
+                title,
+                description,
+                price,
+                netPrice,
+                taxId,
+                categoryId,
+                tenantId
+            });
+        }
+
+        if (menuItemsToInsert.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("no_valid_menu_items_found_in_file"),
+                errors: errors
+            });
+        }
+
+        try {
+            const insertedCount = await bulkAddMenuItemsDB(menuItemsToInsert, branchId);
+            return res.status(200).json({
+                success: true,
+                message: req.__("menu_items_bulk_uploaded_successfully", { count: insertedCount }),
+                errors: errors
+            });
+        } catch (dbError) {
+            console.error("Database error during bulk upload:", dbError);
+            errors.push({
+                line: "N/A",
+                message: req.__("database_error_during_bulk_upload")
+            });
+            return res.status(500).json({
+                success: false,
+                message: req.__("something_went_wrong_try_later"),
+                errors: errors
+            });
+        }
 
     } catch (error) {
         console.error(error);
         return res.status(500).json({
             success: false,
-            message: req.__("something_went_wrong_try_later") // Translate message
+            message: req.__("something_went_wrong_try_later")
         });
     }
 };

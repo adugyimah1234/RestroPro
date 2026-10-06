@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import AppBarDropdown from '../components/AppBarDropdown'
 import Page from "../components/Page";
 import Logo from "../assets/logo.svg";
@@ -6,15 +6,30 @@ import LogoDark from "../assets/LogoDark.svg"
 import { IconCircleCheckFilled, IconLogout } from '@tabler/icons-react';
 import { iconStroke } from '../config/config';
 import toast from 'react-hot-toast';
-import { signOut } from '../controllers/auth.controller';
-import { useNavigate } from 'react-router-dom';
+import { signOut, verifyPaystackTransaction } from '../controllers/auth.controller';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from "react-i18next";
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function PaymentSuccessPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {theme} = useTheme();
+
+  useEffect(() => {
+    const reference = searchParams.get("reference") || searchParams.get("trxref");
+    if (reference) {
+      verifyPaystackTransaction(reference)
+        .then(() => {
+          toast.success("Payment verified & subscription activated!");
+        })
+        .catch((err) => {
+          console.error("Verification error:", err);
+        });
+    }
+  }, [searchParams]);
+
   const btnLogout = async () => {
     try {
       toast.loading(t("loading_message"));

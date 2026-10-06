@@ -1,4 +1,4 @@
-const { getUserDB } = require("../services/user.service");
+const { getUserDB } = require("../services/auth.service");
 const { verifyToken } = require("../utils/jwt");
 const { ROLES } = require("../config/user.config");
 const { getAdminUserDB } = require("../services/superadmin.service");
@@ -22,12 +22,31 @@ exports.isLoggedIn = (req, res, next) => {
     next();
 } 
 
-exports.isAuthenticated = (req, res, next) => {
+exports.isAuthenticated = async (req, res, next) => {
     const accessToken = req.token;
     
     try {
         const decodedToken = verifyToken(accessToken);
-        req.user = decodedToken;
+        let user;
+
+        if (decodedToken.role === ROLES.SUPERADMIN) {
+            user = await getAdminUserDB(decodedToken.username);
+        } else {
+            user = await getUserDB(decodedToken.username, decodedToken.tenant_id);
+        }
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: req.__("operation_not_allowed")
+            });
+        }
+        req.user = user; // Attach the full user object
+        if (decodedToken && decodedToken.branch_id !== undefined && decodedToken.branch_id !== null) {
+            req.user.branch_id = decodedToken.branch_id;
+        } else if (req.user.branch_id === undefined) {
+            req.user.branch_id = null;
+        }
         next();
     } catch (error) {
         console.error(error);
@@ -66,6 +85,9 @@ exports.hasRefreshToken = (req, res, next) => {
     try {
         const decodedToken = verifyToken(token);
         req.user = decodedToken;
+        if (req.user && req.user.branch_id === undefined) {
+            req.user.branch_id = null;
+        }
 
         next();
     } catch (error) {
@@ -161,8 +183,15 @@ exports.authorize = (requiredScopes) => {
 
 exports.isSuperAdmin = async (req, res, next) => {
     try {
-        const {username, role} = req.user;
-    
+        const username = req.user?.email || req.user?.username;
+
+        if (!username) {
+            return res.status(401).json({
+                success: false,
+                message: req.__("operation_not_allowed")
+            });
+        }
+
         const user = await getAdminUserDB(username);
 
         if(!user) {

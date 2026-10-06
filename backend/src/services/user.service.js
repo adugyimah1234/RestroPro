@@ -1,161 +1,138 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { User, RefreshToken, Op, Tenant } = require("../models");
+
 
 exports.getUserDB = async (username, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        if (!tenantId) return null;
+        const user = await User.findOne({
+            where: { username: username, tenant_id: tenantId },
+            include: [{
+                model: Tenant,
+                attributes: ['is_active']
+            }]
+        });
 
-        const sql = `
-        SELECT username, role, scope FROM users
-        WHERE username = ? AND tenant_id = ?
-        LIMIT 1;
-        `;
-    
-        const [result] = await conn.query(sql, [username, tenantId]);
-        return result[0];
+        if (!user) return null;
+
+        const userObj = user.toJSON();
+        userObj.is_active = user.Tenant ? user.Tenant.is_active : null;
+        return userObj;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getAllUsersDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        SELECT username, name, role, photo, designation, phone, email, scope FROM users
-        WHERE tenant_id = ?
-        ORDER BY role, name;
-        `;
-    
-        const [result] = await conn.query(sql, [tenantId]);
-        return result;
+        const users = await User.findAll({
+            where: { tenant_id: tenantId },
+            attributes: ['username', 'name', 'role', 'photo', 'designation', 'phone', 'email', 'scope'],
+            order: [['role', 'ASC'], ['name', 'ASC']]
+        });
+        return users;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.doUserExistDB = async (username) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        SELECT username FROM users
-        WHERE username = ?
-        LIMIT 1;
-        `;
-    
-        const [result] = await conn.query(sql, [username]);
-        return result.length == 1;
+        const user = await User.findOne({
+            where: { username: username },
+            attributes: ['username']
+        });
+        return !!user;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.addUserDB = async (tenantId, username, encryptedPassword, name, role, photo, designation, phone, email, scope) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        INSERT INTO users
-        (username, password, name, role, photo, designation, phone, email, scope, tenant_id)
-        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-
-        await conn.query(sql, [username, encryptedPassword, name, role, photo, designation, phone, email, scope, tenantId]);
+        await User.create({
+            username: username,
+            password: encryptedPassword,
+            name: name,
+            role: role,
+            photo: photo,
+            designation: designation,
+            phone: phone,
+            email: email,
+            scope: scope,
+            tenant_id: tenantId
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteUserDB = async (username, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        DELETE FROM refresh_tokens WHERE username = ? AND tenant_id = ?;
-        DELETE FROM users WHERE username = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [username, tenantId, username, tenantId]);
+        await RefreshToken.destroy({
+            where: { username: username, tenant_id: tenantId }
+        });
+        await User.destroy({
+            where: { username: username, tenant_id: tenantId }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteUserRefreshTokensDB = async (username, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        DELETE FROM refresh_tokens WHERE username = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [username, tenantId]);
+        await RefreshToken.destroy({
+            where: { username: username, tenant_id: tenantId }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateUserDB = async (username, name, photo, designation, phone, email, scope, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        UPDATE users
-        SET
-        name = ?, photo = ?, designation = ?, phone = ?, email = ?, scope = ?
-        WHERE username = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [name, photo, designation, phone, email, scope, username, tenantId]);
+        await User.update(
+            {
+                name: name,
+                photo: photo,
+                designation: designation,
+                phone: phone,
+                email: email,
+                scope: scope
+            },
+            {
+                where: { username: username, tenant_id: tenantId }
+            }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateUserPasswordDB = async (username, password, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        UPDATE users
-        SET
-        password = ?
-        WHERE username = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [password, username, tenantId]);
+        await User.update(
+            {
+                password: password
+            },
+            {
+                where: { username: username, tenant_id: tenantId }
+            }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };

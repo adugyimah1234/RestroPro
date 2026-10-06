@@ -395,7 +395,7 @@ export default function SuperAdminTenantsPage() {
         toast.success(res.data.message);
       }
     } catch (error) {
-      const message = error?.response?.data?.message || t('superadmin_tennats.something_went_wrong');
+      const message = error?.response?.data?.message || t('superadmin_tenants.something_went_wrong');
       console.error(error);
 
       toast.dismiss();
@@ -1116,7 +1116,7 @@ export default function SuperAdminTenantsPage() {
 
           <div className="mt-4">
             <label htmlFor="paymentCustomerId" className="mb-1 block text-gray-500 text-sm">
-              {t('superadmin_tenants.customer_payment_id')}{" "} {/* Changed translation key */}
+              {t('superadmin_tenants.payment_customer_id')}{" "} {/* Changed translation key */}
             </label>
             <input
               ref={paymentCustomerIdRef}

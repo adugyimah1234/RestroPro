@@ -139,7 +139,7 @@ export default function POSPage() {
           storeSettings: data.storeSettings,
           storeTables: data.storeTables,
           serviceCharge:data.serviceCharge,
-          currency: currency?.symbol || "",
+          currency: currency?.symbol || data?.storeSettings?.currency || "$",
           qrOrdersCount: totalQROrders || 0,
           isLoading: false,
         }));
@@ -945,15 +945,16 @@ export default function POSPage() {
 
   return (
     <Page className='px-4 py-3 flex flex-col min-h-0'>
-      <div className="flex md:items-center justify-between flex-col md:flex-row gap-2">
+      <div id="tour-pos-header" className="flex md:items-center justify-between flex-col md:flex-row gap-2">
         <h3>{t('pos.title')}</h3>
-        <div className='flex flex-wrap items-center gap-4'>
+        <div className='flex flex-wrap items-center gap-2 md:gap-3'>
           <button onClick={btnInitNewOrder} className = "text-sm rounded-lg border transition active:scale-95 hover:shadow-lg px-2 py-1 flex items-center gap-1 text-restro-text bg-restro-gray border-restro-border-green hover:bg-restro-button-hover">
             <IconPlus size={18} stroke={iconStroke}  /> {t('pos.new_order')}
           </button>
 
           {/* QR Menu Orders */}
           <button
+          id="tour-pos-qr-orders"
           onClick={btnShowQROrdersModal}
           className = "relative text-sm rounded-lg border transition active:scale-95 hover:shadow-lg px-2 py-1 flex items-center gap-1 text-restro-text bg-restro-gray border-restro-border-green hover:bg-restro-button-hover">
             <IconQrcode size={18} stroke={iconStroke}  /> {t('pos.qr_menu_orders')}
@@ -979,7 +980,7 @@ export default function POSPage() {
         <div className = "h-full md:w-[70%] overflow-y-auto scrollbar-none border rounded-2xl border-restro-border-green">
           {/* categories, search, toggle View*/}
          <div className="bg-background flex gap-2 justify-between sticky top-0 w-full z-10 px-4 py-3 rounded-t-2xl">
-            <div className="flex overflow-x-auto space-x-2 text-sm custom-scroll-wrapper scrollbar scrollbar-none custom-scroll-div-horizon-smooth">
+            <div id="tour-pos-categories" className="flex overflow-x-auto space-x-2 text-sm custom-scroll-wrapper scrollbar scrollbar-none custom-scroll-div-horizon-smooth">
               <div className="flex overflow-x-auto space-x-2 text-sm scrollbar scrollbar-none custom-scroll-div-horizon-smooth">
                 <button
                   className={`min-w-28 px-4 py-2 rounded-xl ${selectedCategory === "all"  ? theme === 'black' ? 'bg-restro-green-dark-mode text-white' : 'bg-restro-green text-white' : theme=== 'black' ? 'bg-restro-bg-seconday-dark-mode' : 'bg-gray-100 text-gray-600'}`}
@@ -1014,6 +1015,7 @@ export default function POSPage() {
                  <input value={searchQuery} onChange={e=>setState({...state, searchQuery: e.target.value})} type="search" placeholder={t('appbar.search_placeholder')} className='w-full bg-transparent outline-none' />
               </label>
               <button
+              id="tour-pos-view-toggle"
               className={clsx(`px-3 py-2 rounded-xl`,
                 theme === "black" ? state.view === "compact" ? "text-restro-green bg-restro-bg-seconday-dark-mode hover:bg-restro-bg-hover-dark-mode" : "text-gray-300 bg-restro-bg-seconday-dark-mode hover:bg-restro-bg-hover-dark-mode" : state.view === "compact" ? "text-restro-green bg-gray-100  hover:bg-gray-200" : "text-gray-400 bg-gray-100  hover:bg-gray-200"
 )}
@@ -1033,7 +1035,7 @@ export default function POSPage() {
 
 
           {/* list */}
-          <div className='flex-1 h-full pt-3'>
+          <div id="tour-pos-items-grid" className='flex-1 h-full pt-3'>
           {state.view == 'detailed' ?
             <POSMenuItemDetailedView
               menuItems={menuItems}
@@ -1066,7 +1068,7 @@ export default function POSPage() {
 
           <div className = "sticky w-full px-4 py-3 border-b rounded-t-2xl border-restro-border-green">
             {/* search customer */}
-            <div onClick={btnOpenSearchCustomerModal} className="flex items-center gap-2">
+            <div id="tour-pos-customer-select" onClick={btnOpenSearchCustomerModal} className="flex items-center gap-2">
               <input value={customerType=="WALKIN"?t('pos.walkin_customer'):`${customer.name}`} type="text" placeholder={t('pos.search_customer')} className= "flex items-center gap-1 text-sm w-full px-4 py-2 transition active:scale-95 hover:shadow-lg border rounded-lg bg-restro-gray border-restro-border-green hover:bg-restro-button-hover outline-restro-border-green"/>
               <button onClick={btnOpenSearchCustomerModal} className = "flex items-center justify-center w-9 h-9 transition active:scale-95 rounded-lg hover:shadow-lg bg-restro-gray border border-restro-border-green hover:bg-restro-button-hover">
                 <IconSearch size={18} stroke={iconStroke} />
@@ -1074,30 +1076,32 @@ export default function POSPage() {
             </div>
             {/* search customer */}
 
-            {/* delivery type */}
-            <select ref={diningOptionRef} className="mt-3 text-sm w-full border rounded-lg px-4 py-2 justify-center bg-restro-gray border-restro-border-green hover:bg-restro-button-hover focus:outline-restro-border-green">
-              <option value="">{t('pos.select_dining_option')}</option>
-              <option value="dinein">{t('pos.dinein')}</option>
-              <option value="delivery">{t('pos.delivery')}</option>
-              <option value="takeaway">{t('pos.takeaway')}</option>
-            </select>
-            {/* delivery type */}
+            <div id="tour-pos-dining-select">
+              {/* delivery type */}
+              <select ref={diningOptionRef} className="mt-3 text-sm w-full border rounded-lg px-4 py-2 justify-center bg-restro-gray border-restro-border-green hover:bg-restro-button-hover focus:outline-restro-border-green">
+                <option value="">{t('pos.select_dining_option')}</option>
+                <option value="dinein">{t('pos.dinein')}</option>
+                <option value="delivery">{t('pos.delivery')}</option>
+                <option value="takeaway">{t('pos.takeaway')}</option>
+              </select>
+              {/* delivery type */}
 
-            {/* table selection */}
-            <select ref={tableRef} className="mt-3 text-sm w-full border rounded-lg px-4 py-2 justify-center bg-restro-gray border-restro-border-green hover:bg-restro-button-hover focus:outline-restro-border-green">
-              <option value="">{t('pos.select_table')}</option>
-              {
-                storeTables.map((table, index)=>{
-                  return <option value={table.id} key={index}>{table.table_title} ({table.seating_capacity} {t('pos.person')}) - {table.floor}</option>
-                })
-              }
-            </select>
-            {/* table selection */}
+              {/* table selection */}
+              <select ref={tableRef} className="mt-3 text-sm w-full border rounded-lg px-4 py-2 justify-center bg-restro-gray border-restro-border-green hover:bg-restro-button-hover focus:outline-restro-border-green">
+                <option value="">{t('pos.select_table')}</option>
+                {
+                  storeTables.map((table, index)=>{
+                    return <option value={table.id} key={index}>{table.table_title} ({table.seating_capacity} {t('pos.person')}) - {table.floor}</option>
+                  })
+                }
+              </select>
+              {/* table selection */}
+            </div>
           </div>
 
 
           {/* items */}
-          <div className='flex-1 flex flex-col gap-4 overflow-y-auto px-4 pb-36'>
+          <div id="tour-pos-cart" className='flex-1 flex flex-col gap-4 overflow-y-auto px-4 pb-36'>
             <div className="h-1"></div>
             {cartItems?.map((cartItem, i)=>{
               const {quantity, notes, title, price, variant, addons} = cartItem;
@@ -1151,7 +1155,7 @@ export default function POSPage() {
 
 
           {/* actions */}
-          <div className = "absolute w-full bottom-0 pb-4 rounded-b-2xl px-4 backdrop-blur border border-t border-b-0 border-l-0 border-r-0 border-restro-border-green">
+          <div id="tour-pos-actions" className = "absolute w-full bottom-0 pb-4 rounded-b-2xl px-4 backdrop-blur border border-t border-b-0 border-l-0 border-r-0 border-restro-border-green">
             <div className="flex items-center flex-col lg:flex-row gap-2 mt-4">
               <button onClick={btnOpenSaveDraftModal} className = "flex items-center flex-1 lg:flex-none text-sm transition active:scale-95 hover:shadow-lg px-2 py-2 gap-1 text-restro-text border rounded-lg border-restro-border-green bg-restro-gray hover:bg-restro-button-hover">
                 <IconDeviceFloppy size={18} stroke={iconStroke}  /> {t('pos.draft')}
@@ -1264,7 +1268,7 @@ export default function POSPage() {
                   <label key={index} className='cursor-pointer label justify-start gap-2'>
                     <input type="radio" className='radio' name="variants" id="" value={id} defaultChecked={index==0} />
                     <div>
-                    <span className="label-text">{title} - {currency}{price}</span>
+                    <span className="label-text">{title} - {currency}{Number(price).toFixed(2)}</span>
                     {isLowStock && (
                         <div className="mt-1 bg-yellow-100 text-yellow-800 text-[10px] font-medium px-1 py-[1px] z-10 w-full flex flex-col items-center gap-[2px] rounded-md">
                           <div className="flex items-center gap-1">
@@ -1310,7 +1314,7 @@ export default function POSPage() {
                   <label key={index} className='cursor-pointer label justify-start gap-2'>
                     <input type="checkbox" name="addons" id="" className='checkbox  checkbox-sm' value={id} />
                     <div>
-                    <span className="label-text">{title} (+{currency}{price})</span>
+                    <span className="label-text">{title} (+{currency}{Number(price).toFixed(2)})</span>
                     {isLowStock && (
                       <div className="mt-1 bg-yellow-100 text-yellow-800 text-[10px] font-medium px-1 py-[1px] z-10 w-full flex flex-col items-center gap-[2px] rounded-md">
                         <div className="flex items-center gap-1">

@@ -1,815 +1,660 @@
+
 const { CONFIG } = require("../config");
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { StoreDetails, PrintSetting, Tax, PaymentType, StoreTable, Category, QrOrder, QrOrderItem, Customer, Feedback, sequelize, Op } = require("../models");
+
 
 exports.getTenantIdFromQRCode = async (qrcode) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        SELECT
-            tenant_id
-        FROM
-            store_details
-        WHERE
-            unique_qr_code = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [qrcode]);
-        return result[0]?.tenant_id;
+        const storeDetail = await StoreDetails.findOne({
+            where: { unique_qr_code: qrcode },
+            attributes: ['tenant_id']
+        });
+        return storeDetail?.tenant_id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantIdFromIdentifier = async (identifier) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        SELECT
-            tenant_id
-        FROM
-            store_details
-        WHERE
-            unique_qr_code = ? OR tenant_slug = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [identifier, identifier]);
-        return result[0]?.tenant_id;
+        const storeDetail = await StoreDetails.findOne({
+            where: {
+                [Op.or]: [
+                    { unique_qr_code: identifier },
+                    { tenant_slug: identifier }
+                ]
+            },
+            attributes: ['tenant_id']
+        });
+        return storeDetail?.tenant_id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.setTenantSlugDB = async (tenantId, tenantSlug) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        const sql = `
-        UPDATE store_details
-        SET tenant_slug = ?
-        WHERE tenant_id = ?;
-        `;
-
-        await conn.query(sql, [tenantSlug, tenantId]);
+        await StoreDetails.update(
+            { tenant_slug: tenantSlug },
+            { where: { tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getCurrencyDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        SELECT
-            currency
-        FROM
-            store_details
-        WHERE tenant_id = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result[0]?.currency;
+        const storeDetail = await StoreDetails.findOne({
+            where: { tenant_id: tenantId },
+            attributes: ['currency']
+        });
+        return storeDetail?.currency;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getStoreSettingDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT tenant_id, store_image, store_name, address, phone, email, currency, is_qr_menu_enabled, unique_qr_code, is_qr_order_enabled, is_feedback_enabled, unique_id, tenant_slug FROM store_details
-        WHERE tenant_id = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result[0];
+        const storeDetail = await StoreDetails.findOne({
+            where: { tenant_id: tenantId },
+            attributes: [
+                'tenant_id',
+                'store_image',
+                'store_name',
+                'address',
+                'phone',
+                'email',
+                'currency',
+                'is_qr_menu_enabled',
+                'unique_qr_code',
+                'is_qr_order_enabled',
+                'is_feedback_enabled',
+                'unique_id',
+                'tenant_slug'
+            ]
+        });
+        return storeDetail;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.setStoreSettingDB = async (storeName, address, phone, email, currency, isQRMenuEnabled, isQROrderEnabled , uniqueQRCode, isFeedbackEnabled, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO store_details ( store_name, address, phone, email, currency, is_qr_menu_enabled, is_qr_order_enabled, unique_qr_code, is_feedback_enabled, tenant_id)
-        VALUES
-        ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        store_name = VALUES(store_name),
-        is_qr_menu_enabled = VALUES(is_qr_menu_enabled),
-        address = VALUES(address),
-        phone = VALUES(phone),
-        email = VALUES(email),
-        currency = VALUES(currency),
-        tenant_id = VALUES(tenant_id),
-        is_qr_order_enabled = VALUES(is_qr_order_enabled),
-        is_feedback_enabled = VALUES(is_feedback_enabled);
-        `;
-
-        await conn.query(sql, [storeName, address, phone, email, currency, isQRMenuEnabled,isQROrderEnabled ,uniqueQRCode, isFeedbackEnabled, tenantId]);
+        await StoreDetails.upsert({
+            tenant_id: tenantId,
+            store_name: storeName,
+            address: address,
+            phone: phone,
+            email: email,
+            currency: currency,
+            is_qr_menu_enabled: isQRMenuEnabled,
+            is_qr_order_enabled: isQROrderEnabled,
+            unique_qr_code: uniqueQRCode,
+            is_feedback_enabled: isFeedbackEnabled,
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.uploadStoreImageDB = async (image, uniqueId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        const sql = `
-        INSERT INTO store_details (tenant_id, store_image, unique_id)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        tenant_id = VALUES(tenant_id),
-        store_image = VALUES(store_image),
-        unique_id = VALUES(unique_id);`
-
-        await conn.query(sql, [tenantId, image, uniqueId]);
+        await StoreDetails.upsert({
+            tenant_id: tenantId,
+            store_image: image,
+            unique_id: uniqueId,
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteStoreImageDB = async (image, uniqueId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        const sql = `
-        UPDATE store_details SET
-        store_image = ?
-        WHERE unique_id = ? AND tenant_id = ?;`
-
-        await conn.query(sql, [image, uniqueId, tenantId]);
+        await StoreDetails.update(
+            { store_image: image },
+            { where: { unique_id: uniqueId, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateServiceChargeDB = async (serviceCharge, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO store_details (tenant_id, service_charge)
-        VALUES (?, ?)
-        ON DUPLICATE KEY UPDATE service_charge = VALUES(service_charge);
-        `;
-
-        await conn.query(sql, [tenantId, serviceCharge]);
+        await StoreDetails.upsert({
+            tenant_id: tenantId,
+            service_charge: serviceCharge,
+        });
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getServiceChargeDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT service_charge FROM store_details where tenant_id = ?
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result[0]?.service_charge || null;
+        const storeDetail = await StoreDetails.findOne({
+            where: { tenant_id: tenantId },
+            attributes: ['service_charge']
+        });
+        return storeDetail?.service_charge || null;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getQRMenuCodeDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT unique_qr_code FROM store_details
-        WHERE tenant_id = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result[0]?.unique_qr_code || null;
+        const storeDetail = await StoreDetails.findOne({
+            where: { tenant_id: tenantId },
+            attributes: ['unique_qr_code']
+        });
+        return storeDetail?.unique_qr_code || null;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateQRMenuCodeDB = async (uniqueQRCode, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        UPDATE store_details SET unique_qr_code = ?
-        WHERE tenant_id = ?;
-        `;
-
-        await conn.query(sql, [uniqueQRCode, tenantId]);
+        await StoreDetails.update(
+            { unique_qr_code: uniqueQRCode },
+            { where: { tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getPrintSettingDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT  page_format, header, footer, show_notes, is_enable_print, show_store_details, show_customer_details, print_token FROM print_settings
-        WHERE tenant_id = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result[0];
+        const printSetting = await PrintSetting.findOne({
+            where: { tenant_id: tenantId },
+            attributes: [
+                'page_format',
+                'header',
+                'footer',
+                'show_notes',
+                'is_enable_print',
+                'show_store_details',
+                'show_customer_details',
+                'print_token'
+            ]
+        });
+        return printSetting;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.setPrintSettingDB = async (pageFormat, header, footer, showNotes, isEnablePrint, showStoreDetails, showCustomerDetails, printToken, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO print_settings
-        ( page_format, header, footer, show_notes, is_enable_print, show_store_details, show_customer_details, print_token, tenant_id)
-        VALUES
-        ( ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        page_format = VALUES(page_format),
-        header = VALUES(header),
-        footer = VALUES(footer),
-        show_notes = VALUES(show_notes),
-        is_enable_print = VALUES(is_enable_print),
-        show_store_details = VALUES(show_store_details),
-        show_customer_details = VALUES(show_customer_details),
-        print_token = VALUES(print_token),
-        tenant_id = VALUES(tenant_id);
-        `;
-
-        await conn.query(sql, [pageFormat, header, footer, showNotes, isEnablePrint, showStoreDetails, showCustomerDetails, printToken, tenantId]);
+        await PrintSetting.upsert({
+            tenant_id: tenantId,
+            page_format: pageFormat,
+            header: header,
+            footer: footer,
+            show_notes: showNotes,
+            is_enable_print: isEnablePrint,
+            show_store_details: showStoreDetails,
+            show_customer_details: showCustomerDetails,
+            print_token: printToken,
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.addTaxDB = async (title, rate, type, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO taxes
-        (title, rate, type, tenant_id)
-        VALUES (?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [title, rate, type, tenantId]);
-        return result.insertId;
+        const tax = await Tax.create({
+            title: title,
+            rate: rate,
+            type: type,
+            tenant_id: tenantId,
+        });
+        return tax.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getTaxesDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT id, title, rate, type FROM taxes WHERE tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result;
+        const taxes = await Tax.findAll({
+            where: { tenant_id: tenantId },
+            attributes: ['id', 'title', 'rate', 'type']
+        });
+        return taxes;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getTaxDB = async (taxId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT id, title, rate, type FROM taxes
-        WHERE id = ? AND tenant_id = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [taxId, tenantId]);
-        return result[0];
+        const tax = await Tax.findOne({
+            where: { id: taxId, tenant_id: tenantId },
+            attributes: ['id', 'title', 'rate', 'type']
+        });
+        return tax;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteTaxDB = async (id, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        DELETE FROM taxes WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [id, tenantId]);
+        await Tax.destroy({
+            where: { id: id, tenant_id: tenantId }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateTaxDB = async (id, title, rate, type, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        UPDATE taxes
-        SET
-        title = ?, rate = ?, type = ?
-        WHERE id = ? AND tenant_id = ?
-        `;
-
-        await conn.query(sql, [title, rate, type, id, tenantId]);
+        await Tax.update(
+            { title: title, rate: rate, type: type },
+            { where: { id: id, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 
 exports.addPaymentTypeDB = async (title, isActive, tenantId, icon) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO payment_types
-        (title, is_active, tenant_id, icon)
-        VALUES (?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [title, isActive, tenantId, icon]);
-        return result.insertId;
+        const paymentType = await PaymentType.create({
+            title: title,
+            is_active: isActive,
+            tenant_id: tenantId,
+            icon: icon,
+        });
+        return paymentType.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getPaymentTypesDB = async (activeOnly=false, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        let sql = `
-        SELECT id, title, is_active, icon FROM payment_types
-        WHERE tenant_id = ?;
-        `;
-
-        if(activeOnly) {
-            sql = `
-            SELECT id, title, is_active, icon FROM payment_types
-            WHERE is_active = 1 AND tenant_id = ?;
-            `
+        const whereCondition = { tenant_id: tenantId };
+        if (activeOnly) {
+            whereCondition.is_active = true;
         }
 
-        const [result] = await conn.query(sql, [tenantId]);
-        return result;
+        const paymentTypes = await PaymentType.findAll({
+            where: whereCondition,
+            attributes: ['id', 'title', 'is_active', 'icon']
+        });
+        return paymentTypes;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updatePaymentTypeDB = async (id, title, isActive, tenantId, icon) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        UPDATE payment_types
-        SET title = ?, is_active = ?, icon = ?
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [title, isActive, icon, id, tenantId]);
+        await PaymentType.update(
+            { title: title, is_active: isActive, icon: icon },
+            { where: { id: id, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.togglePaymentTypeDB = async (id, isActive, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        UPDATE payment_types
-        SET is_active = ?
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [isActive, id, tenantId]);
+        await PaymentType.update(
+            { is_active: isActive },
+            { where: { id: id, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deletePaymentTypeDB = async (id, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        DELETE FROM payment_types
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [id, tenantId]);
+        await PaymentType.destroy({
+            where: { id: id, tenant_id: tenantId }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.addStoreTableDB = async (title, floor, seatingCapacity, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO store_tables
-        (table_title, floor, seating_capacity, tenant_id)
-        VALUES (?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [title, floor, seatingCapacity, tenantId]);
-        return result.insertId;
+        const storeTable = await StoreTable.create({
+            table_title: title,
+            floor: floor,
+            seating_capacity: seatingCapacity,
+            tenant_id: tenantId,
+        });
+        return storeTable.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getStoreTablesDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-        id,
-        HEX(AES_ENCRYPT(HEX(id), ?)) AS encrypted_id,
-        table_title,
-        floor,
-        seating_capacity
-        FROM store_tables
-        WHERE tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [CONFIG.ENCRYPTION_KEY, tenantId]);
-        return result;
+        const storeTables = await StoreTable.findAll({
+            where: { tenant_id: tenantId },
+            attributes: [
+                'id',
+                'table_title',
+                'floor',
+                'seating_capacity',
+                [sequelize.literal(`HEX(AES_ENCRYPT(HEX(id), '${CONFIG.ENCRYPTION_KEY}'))`), 'encrypted_id']
+            ]
+        });
+        return storeTables;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getStoreTableByEncryptedIdDB = async (tenantId, encryptedTableId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-        id,
-        table_title,
-        floor,
-        seating_capacity
-        FROM store_tables
-        WHERE tenant_id = ? AND AES_DECRYPT(UNHEX(?), ?) = HEX(id)
-        LIMIT 1;
-        `;
+        const storeTable = await StoreTable.findOne({
+            where: {
+                tenant_id: tenantId,
+                id: sequelize.literal(`AES_DECRYPT(UNHEX('${encryptedTableId}'), '${CONFIG.ENCRYPTION_KEY}')`)
+            },
+            attributes: [
+                'id',
+                'table_title',
+                'floor',
+                'seating_capacity'
+            ]
+        });
 
-        const [result] = await conn.query(sql, [tenantId, encryptedTableId, CONFIG.ENCRYPTION_KEY]);
-
-        return result[0] || null;
+        return storeTable || null;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateStoreTableDB = async (id, title, floor, seatingCapacity, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        UPDATE store_tables SET
-        table_title = ?, floor = ?, seating_capacity = ?
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [title, floor, seatingCapacity, id, tenantId]);
+        await StoreTable.update(
+            { table_title: title, floor: floor, seating_capacity: seatingCapacity },
+            { where: { id: id, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteStoreTableDB = async (id, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        DELETE FROM store_tables
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [id, tenantId]);
+        await StoreTable.destroy({
+            where: { id: id, tenant_id: tenantId }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.addCategoryDB = async (title, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO categories
-        (title, tenant_id)
-        VALUES (?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [title, tenantId]);
-        return result.insertId;
+        const category = await Category.create({
+            title: title,
+            tenant_id: tenantId,
+        });
+        return category.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getCategoriesDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT id, title, is_enabled FROM categories
-        WHERE tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result;
+        const categories = await Category.findAll({
+            where: { tenant_id: tenantId },
+            attributes: ['id', 'title', 'is_enabled']
+        });
+        return categories;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateCategoryDB = async (id, title, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        UPDATE categories
-        SET title = ?
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [title, id, tenantId]);
+        await Category.update(
+            { title: title },
+            { where: { id: id, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteCategoryDB = async (id, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        DELETE FROM categories
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [id, tenantId]);
+        await Category.destroy({
+            where: { id: id, tenant_id: tenantId }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.changeCategoryVisibiltyDB = async (id, isEnabled, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-         UPDATE categories SET
-         is_enabled = ?
-         WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [isEnabled, id, tenantId]);
-
+        await Category.update(
+            { is_enabled: isEnabled },
+            { where: { id: id, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
+    }
+}
+
+exports.bulkAddCategoriesDB = async (categoryTitles, tenantId) => {
+    try {
+        if (!categoryTitles || categoryTitles.length === 0) {
+            return 0;
+        }
+
+        const existing = await Category.findAll({
+            where: { tenant_id: tenantId },
+            attributes: ['title']
+        });
+
+        const existingSet = new Set(existing.map(c => c.title.trim().toLowerCase()));
+
+        const toInsert = [];
+        const addedTitles = new Set();
+
+        for (const title of categoryTitles) {
+            const cleanTitle = title.trim();
+            if (!cleanTitle) continue;
+
+            const lower = cleanTitle.toLowerCase();
+            if (!existingSet.has(lower) && !addedTitles.has(lower)) {
+                toInsert.push({
+                    title: cleanTitle,
+                    tenant_id: tenantId,
+                    is_enabled: true
+                });
+                addedTitles.add(lower);
+            }
+        }
+
+        if (toInsert.length === 0) {
+            return 0;
+        }
+
+        const created = await Category.bulkCreate(toInsert);
+        return created.length;
+    } catch (error) {
+        console.error("Error bulk adding categories:", error);
+        throw error;
     }
 }
 
 exports.placeOrderViaQrMenuDB = async (tenantId, deliveryType , cartItems, customerType, customerId, tableId, customerName ,paymentStatus = 'pending') => {
-    const conn = await getMySqlPromiseConnection();
+    const t = await sequelize.transaction();
 
     try {
-      // start transaction
-      await conn.beginTransaction();
-
       // step 1: save data to orders table
-      const [orderResult] = await conn.query(`INSERT INTO qr_orders (delivery_type, customer_type, customer_id, table_id, payment_status, tenant_id) VALUES (?, ?, ?, ?, ?, ?)`, [deliveryType, customerType, customerId, tableId, paymentStatus || 'pending', tenantId]);
+      const qrOrder = await QrOrder.create({
+        delivery_type: deliveryType,
+        customer_type: customerType,
+        customer_id: customerId,
+        table_id: tableId,
+        payment_status: paymentStatus || 'pending',
+        tenant_id: tenantId
+      }, { transaction: t });
 
-      const orderId = orderResult.insertId;
+      const orderId = qrOrder.id;
 
       // step 2: save data to order_items
-      const sqlOrderItems = `
-      INSERT INTO qr_order_items
-      (order_id, item_id, variant_id, price, quantity, notes, addons, tenant_id)
-      VALUES ?
-      `;
-
-      await conn.query(sqlOrderItems, [cartItems.map((item)=>[orderId, item.id, item.variant_id, item.price, item.quantity, item.notes, item?.addons_ids?.length > 0 ? JSON.stringify(item.addons_ids):null, tenantId ])]);
+      const orderItems = cartItems.map((item) => ({
+        order_id: orderId,
+        item_id: item.id,
+        variant_id: item.variant_id,
+        price: item.price,
+        quantity: item.quantity,
+        notes: item.notes,
+        addons: item?.addons_ids?.length > 0 ? JSON.stringify(item.addons_ids) : null,
+        tenant_id: tenantId
+      }));
+      await QrOrderItem.bulkCreate(orderItems, { transaction: t });
 
 
 			// Step 3 : Search customer by phone in customer table - if not existing - create one
 			if(customerId){
-				const sqlIsExistingCustomer = `
-					SELECT 1 from customers where phone = ? AND tenant_id = ?
-			`
+				const existingCustomer = await Customer.findOne({
+                    where: { phone: customerId, tenant_id: tenantId },
+                    transaction: t
+                });
 
-				const [existingCustomer] = await conn.query(sqlIsExistingCustomer , [customerId, tenantId]);
 
-
-				if (!existingCustomer.length) {
-					const sqlAddCustomer = `
-							INSERT INTO customers (phone, name,tenant_id) VALUES (?, ?,?)
-					`;
-
-					await conn.query(sqlAddCustomer, [customerId, customerName, tenantId]);
+				if (!existingCustomer) {
+					await Customer.create({
+                        phone: customerId,
+                        name: customerName,
+                        tenant_id: tenantId
+                    }, { transaction: t });
 				}
 			}
 
 
-      // step 7: commit transaction / if any exception occurs then rollback
-      await conn.commit();
+      await t.commit();
 
       return {
         orderId
       }
     } catch (error) {
       console.error(error);
-      await conn.rollback();
+      await t.rollback();
       throw error;
-    } finally {
-      conn.release();
     }
   };
 
 exports.saveFeedbackDB = async (tenantId, invoiceId, customerId, phone, name, email, birthdate, averageRating, food_quality, service, ambiance, staff_behavior, recommend, remarks) => {
-    const conn = await getMySqlPromiseConnection();
+    const t = await sequelize.transaction();
 
     try {
-      // start transaction
-      await conn.beginTransaction();
+        const existingCustomer = await Customer.findOne({
+            where: { phone: customerId || phone, tenant_id: tenantId },
+            transaction: t
+        });
 
+        if (!existingCustomer) {
+            await Customer.create({
+                phone: phone,
+                name: name,
+                email: email || null,
+                birth_date: birthdate || null,
+                tenant_id: tenantId
+            }, { transaction: t });
+        }
 
-    const sqlIsExistingCustomer = `SELECT 1 from customers where phone = ? AND tenant_id = ?`
+        const uniqueCustomerId = customerId || phone || null;
 
-    const [existingCustomer] = await conn.query(sqlIsExistingCustomer , [customerId || phone, tenantId]);
+        await Feedback.create({
+            invoice_id: invoiceId,
+            phone: uniqueCustomerId,
+            created_by: null, // Assuming created_by is always null based on the original query
+            average_rating: averageRating,
+            food_quality_rating: food_quality,
+            service_rating: service,
+            staff_behavior_rating: staff_behavior,
+            ambiance_rating: ambiance,
+            recommend_rating: recommend,
+            remarks: remarks || null,
+            tenant_id: tenantId
+        }, { transaction: t });
 
+        await t.commit();
 
-    if (existingCustomer.length == 0) {
-        const sqlAddCustomer = `
-                INSERT INTO customers (phone, name, email, birth_date, tenant_id) VALUES (?, ?, ?, ?, ?)
-        `;
-
-        await conn.query(sqlAddCustomer, [phone, name, email || null, birthdate || null, tenantId]);
-    }
-
-    const uniqueCustomerId = customerId || phone || null;
-
-    await conn.query(`INSERT INTO feedbacks (invoice_id, phone, created_by, average_rating, food_quality_rating, service_rating, staff_behavior_rating, ambiance_rating, recommend_rating, remarks, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [invoiceId, uniqueCustomerId, null, averageRating, food_quality, service, staff_behavior, ambiance, recommend, remarks||null, tenantId]);
-
-      // step 7: commit transaction / if any exception occurs then rollback
-      await conn.commit();
-
-      return;
+        return;
     } catch (error) {
-      console.error(error);
-      await conn.rollback();
-      throw error;
-    } finally {
-      conn.release();
+        console.error(error);
+        await t.rollback();
+        throw error;
     }
 };

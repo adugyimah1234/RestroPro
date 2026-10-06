@@ -1,16 +1,16 @@
-const { escape } = require("mysql2");
-const { getMySqlPromiseConnection } = require("../config/mysql.db");
+const { InventoryItem, InventoryLog, InventoryVendor, InventoryPurchaseOrderDraft, InventoryPurchaseOrder, InventoryPurchaseOrderItem, Sequence, MenuItem, sequelize, Op } = require("../models");
 
-exports.bulkAddInventoryItemsDB = async (items, tenantId, username) => {
+exports.bulkAddInventoryItemsDB = async (items, tenantId, username, branchId) => {
   if (!items || items.length === 0) {
     return 0;
   }
 
-  const conn = await getMySqlPromiseConnection();
+  const t = await sequelize.transaction();
   try {
-    await conn.beginTransaction();
-
     let itemsProcessed = 0;
+    const inventoryItemsToCreate = [];
+    const inventoryLogsToCreate = [];
+
     for (const item of items) {
       const title = item.title;
       const quantity = parseFloat(item.quantity) || 0;
@@ -18,7 +18,6 @@ exports.bulkAddInventoryItemsDB = async (items, tenantId, username) => {
       const minQuantityThreshold = parseFloat(item.min_quantity_threshold) || 0;
 
       if (!title || !unit) {
-        // Skip invalid rows
         continue;
       }
       itemsProcessed++;
@@ -30,35 +29,50 @@ exports.bulkAddInventoryItemsDB = async (items, tenantId, username) => {
         status = "in";
       }
 
-      const [result] = await conn.query(
-        `INSERT INTO inventory_items
-        (title, quantity, unit, min_quantity_threshold, status, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?)`,
-        [title, quantity, unit, minQuantityThreshold, status, tenantId]
-      );
-      const inventoryItemId = result.insertId;
-
-      if (quantity > 0) {
-        await conn.query(
-          `INSERT INTO inventory_logs
-          (tenant_id, inventory_item_id, type, quantity_change, previous_quantity, new_quantity, note, created_by)
-          VALUES (?, ?, 'IN', ?, 0, ?, 'Initial stock (bulk upload)', ?)`,
-          [tenantId, inventoryItemId, quantity, quantity, username]
-        );
-      }
+      inventoryItemsToCreate.push({
+        title: title,
+        quantity: quantity,
+        unit: unit,
+        min_quantity_threshold: minQuantityThreshold,
+        status: status,
+        tenant_id: tenantId,
+        branch_id: branchId
+      });
     }
 
     if (itemsProcessed === 0) {
       throw new Error("No valid rows found in the file. Please ensure the columns are named correctly (title, quantity, unit, min_quantity_threshold) and that title and unit are not empty.");
     }
 
-    await conn.commit();
+    const createdInventoryItems = await InventoryItem.bulkCreate(inventoryItemsToCreate, { transaction: t });
+
+    for (let i = 0; i < createdInventoryItems.length; i++) {
+        const item = items[i];
+        const quantity = parseFloat(item.quantity) || 0;
+        if (quantity > 0) {
+            inventoryLogsToCreate.push({
+                tenant_id: tenantId,
+                branch_id: branchId,
+                inventory_item_id: createdInventoryItems[i].id,
+                type: 'IN',
+                quantity_change: quantity,
+                previous_quantity: 0,
+                new_quantity: quantity,
+                note: 'Initial stock (bulk upload)',
+                created_by: username,
+            });
+        }
+    }
+
+    if (inventoryLogsToCreate.length > 0) {
+        await InventoryLog.bulkCreate(inventoryLogsToCreate, { transaction: t });
+    }
+
+    await t.commit();
     return itemsProcessed;
   } catch (error) {
-    await conn.rollback();
+    await t.rollback();
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
@@ -68,12 +82,11 @@ exports.addInventoryItemDB = async (
   unit,
   minQuantityThreshold,
   tenantId,
-  username
+  username,
+  branchId
 ) => {
-  const conn = await getMySqlPromiseConnection();
+  const t = await sequelize.transaction();
   try {
-    await conn.beginTransaction();
-
     let status = 'out';
     if (quantity > 0 && quantity <= minQuantityThreshold) {
       status = 'low';
@@ -81,55 +94,47 @@ exports.addInventoryItemDB = async (
       status = 'in';
     }
 
-    const sql = `
-      INSERT INTO inventory_items
-      (title, quantity, unit, min_quantity_threshold, status, tenant_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `;
-    const [result] = await conn.query(sql, [
-      title,
-      quantity,
-      unit,
-      minQuantityThreshold,
-      status,
-      tenantId,
-    ]);
+    const inventoryItem = await InventoryItem.create({
+      title: title,
+      quantity: quantity,
+      unit: unit,
+      min_quantity_threshold: minQuantityThreshold,
+      status: status,
+      tenant_id: tenantId,
+      branch_id: branchId
+    }, { transaction: t });
 
-    const inventoryItemId = result.insertId;
+    const inventoryItemId = inventoryItem.id;
 
-    await conn.query(
-      `INSERT INTO inventory_logs
-      (tenant_id, inventory_item_id, type, quantity_change, previous_quantity, new_quantity, note, created_by)
-      VALUES (?, ?, 'IN', ?, 0, ?, 'Initial stock', ?)`,
-      [tenantId, inventoryItemId, quantity, quantity, username]
-    );
+    await InventoryLog.create({
+      tenant_id: tenantId,
+      branch_id: branchId,
+      inventory_item_id: inventoryItemId,
+      type: 'IN',
+      quantity_change: quantity,
+      previous_quantity: 0,
+      new_quantity: quantity,
+      note: 'Initial stock',
+      created_by: username,
+    }, { transaction: t });
 
-    await conn.commit();
+    await t.commit();
 
-    return result.insertId;
+    return inventoryItemId;
   } catch (error) {
-    await conn.rollback();
+    await t.rollback();
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
-exports.getInventoryItemsDB = async (status, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getInventoryItemsDB = async (status, tenantId, branchId) => {
   try {
-    let sql = '';
-
-    let countsSql = `
-      SELECT
-        status,
-        COUNT(*) AS count
-      FROM inventory_items
-      WHERE tenant_id = ?
-      GROUP BY status
-    `;
-
-    const [statusCounts] = await conn.query(countsSql, [tenantId]);
+    const statusCounts = await InventoryItem.findAll({
+      attributes: ['status', [sequelize.fn('COUNT', sequelize.col('status')), 'count']],
+      where: { tenant_id: tenantId, branch_id: branchId },
+      group: ['status'],
+      raw: true,
+    });
 
     const statusCountMap = {
       in: 0,
@@ -143,48 +148,30 @@ exports.getInventoryItemsDB = async (status, tenantId) => {
       }
     });
 
-    if(status != 'all'){
-      sql = `
-      SELECT
-        id,
-        title,
-        quantity,
-        unit,
-        min_quantity_threshold,
-        status,
-        tenant_id,
-        created_at,
-        updated_at
-      FROM inventory_items
-      WHERE tenant_id = ? AND status = ?
-      ORDER BY id DESC
-    `;
-      const [rows] = await conn.query(sql, [tenantId, status]);
-      return {items: rows, statusCounts: statusCountMap};
-    }else{
-      sql = `
-      SELECT
-        id,
-        title,
-        quantity,
-        unit,
-        min_quantity_threshold,
-        status,
-        tenant_id,
-        created_at,
-        updated_at
-      FROM inventory_items
-      WHERE tenant_id = ?
-      ORDER BY id DESC
-    `;
-      const [rows] = await conn.query(sql, [tenantId]);
-      return { items: rows, statusCounts: statusCountMap };
+    let whereCondition = { tenant_id: tenantId, branch_id: branchId };
+    if (status !== 'all') {
+      whereCondition.status = status;
     }
 
+    const items = await InventoryItem.findAll({
+      where: whereCondition,
+      attributes: [
+        'id',
+        'title',
+        'quantity',
+        'unit',
+        'min_quantity_threshold',
+        'status',
+        'tenant_id',
+        'created_at',
+        'updated_at'
+      ],
+      order: [['id', 'DESC']],
+    });
+
+    return { items: items.map(item => item.get({ plain: true })), statusCounts: statusCountMap };
   } catch (error) {
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
@@ -193,52 +180,54 @@ exports.updateInventoryItemDB = async (
   title,
   unit,
   minQuantityThreshold,
-  tenantId
+  tenantId,
+  branchId
 ) => {
-  const conn = await getMySqlPromiseConnection();
   try {
+    // First, get the current quantity to determine the status
+    const inventoryItem = await InventoryItem.findOne({
+        where: { id: itemId, tenant_id: tenantId, branch_id: branchId },
+        attributes: ['quantity']
+    });
 
     let status = 'out';
-    if (quantity > 0 && quantity <= minQuantityThreshold) {
+    if (inventoryItem.quantity > 0 && inventoryItem.quantity <= minQuantityThreshold) {
       status = 'low';
-    } else if (quantity > minQuantityThreshold) {
+    } else if (inventoryItem.quantity > minQuantityThreshold) {
       status = 'in';
     }
 
-    const sql = `
-      UPDATE inventory_items
-      SET title = ?, unit = ?, min_quantity_threshold = ?, status = ?,
-      WHERE id = ? AND tenant_id = ?
-    `;
-    await conn.query(sql, [
-      title,
-      unit,
-      minQuantityThreshold,
-      status,
-      itemId,
-      tenantId,
-    ]);
+    await InventoryItem.update(
+      {
+        title: title,
+        unit: unit,
+        min_quantity_threshold: minQuantityThreshold,
+        status: status,
+      },
+      {
+        where: { id: itemId, tenant_id: tenantId, branch_id: branchId }
+      }
+    );
   } catch (error) {
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
-exports.addInventoryItemStockMovementDB = async (req, itemId, movementType, quantity, note, tenantId, username) => {
-  const conn = await getMySqlPromiseConnection();
+exports.addInventoryItemStockMovementDB = async (req, itemId, movementType, quantity, note, tenantId, username, branchId) => {
+  const t = await sequelize.transaction();
   try {
-    await conn.beginTransaction();
-
     // Step 1: Get current quantity
-    const [rows] = await conn.query(
-      `SELECT quantity, min_quantity_threshold FROM inventory_items WHERE id = ? AND tenant_id = ? FOR UPDATE`,
-      [itemId, tenantId]
-    );
-    if (rows.length === 0) throw new Error(req.__('inventory_item_not_found_message'));
+    const inventoryItem = await InventoryItem.findOne({
+      where: { id: itemId, tenant_id: tenantId, branch_id: branchId },
+      attributes: ['quantity', 'min_quantity_threshold'],
+      lock: t.LOCK.UPDATE, // FOR UPDATE equivalent
+      transaction: t
+    });
 
-    const previousQuantity = parseFloat(rows[0].quantity);
-    const minQuantityThreshold = parseFloat(rows[0].min_quantity_threshold);
+    if (!inventoryItem) throw new Error(req.__('inventory_item_not_found_message'));
+
+    const previousQuantity = parseFloat(inventoryItem.quantity);
+    const minQuantityThreshold = parseFloat(inventoryItem.min_quantity_threshold);
 
     // Determine quantity delta based on movement type
     let deltaQuantity;
@@ -268,524 +257,543 @@ exports.addInventoryItemStockMovementDB = async (req, itemId, movementType, quan
     }
 
     // Step 2: Update inventory quantity and status
-    await conn.query(
-      `UPDATE inventory_items SET quantity = ?, status = ? WHERE id = ? AND tenant_id = ?`,
-      [newQuantity, status, itemId, tenantId]
+    await InventoryItem.update(
+      { quantity: newQuantity, status: status },
+      { where: { id: itemId, tenant_id: tenantId, branch_id: branchId }, transaction: t }
     );
 
     // Step 3: Insert inventory log with correct type
-    await conn.query(
-      `INSERT INTO inventory_logs (tenant_id, inventory_item_id, type, quantity_change, previous_quantity, new_quantity, note, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [tenantId, itemId, movementType, Math.abs(deltaQuantity), previousQuantity, newQuantity, note, username]
-    );
+    await InventoryLog.create({
+      tenant_id: tenantId,
+      branch_id: branchId,
+      inventory_item_id: itemId,
+      type: movementType,
+      quantity_change: Math.abs(deltaQuantity),
+      previous_quantity: previousQuantity,
+      new_quantity: newQuantity,
+      note: note,
+      created_by: username,
+    }, { transaction: t });
 
-    await conn.commit();
+    await t.commit();
   } catch (error) {
-    await conn.rollback();
+    await t.rollback();
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
 
-exports.deleteInventoryItemDB = async (itemId, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.deleteInventoryItemDB = async (itemId, tenantId, branchId) => {
   try {
-    const sql = `DELETE FROM inventory_items WHERE id = ? AND tenant_id = ?`;
-    await conn.query(sql, [itemId, tenantId]);
+    await InventoryItem.destroy({
+      where: { id: itemId, tenant_id: tenantId, branch_id: branchId }
+    });
   } catch (error) {
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
-exports.getInventoryLogsDB = async (movementType, type, from, to, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getInventoryLogsDB = async (movementType, type, from, to, tenantId, branchId) => {
   try {
-    const {filter, params} = getFilterCondition('l.created_at', type, from, to);
+    const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-    let sql = "";
-
-    if(movementType != 'all'){
-      sql = `
-        SELECT
-          l.id,
-          l.inventory_item_id,
-          i.title,
-          i.unit,
-          l.type,
-          l.quantity_change as quantity,
-          l.note,
-          l.created_by,
-          l.created_at
-        FROM inventory_logs l
-        JOIN inventory_items i ON i.id = l.inventory_item_id
-        WHERE l.tenant_id = ${tenantId} AND l.type = '${movementType}' AND ${filter}
-        ORDER BY l.created_at DESC
-      `;
-      const [rows] = await conn.query(sql, params);
-      return rows;
-    }else{
-      sql = `
-        SELECT
-          l.id,
-          l.inventory_item_id,
-          i.title,
-          i.unit,
-          l.type,
-          l.quantity_change as quantity,
-          l.note,
-          l.created_by,
-          l.created_at
-        FROM inventory_logs l
-        JOIN inventory_items i ON i.id = l.inventory_item_id
-        WHERE l.tenant_id = ${tenantId} AND ${filter}
-        ORDER BY l.created_at DESC
-      `;
-      const [rows] = await conn.query(sql, params);
-      return rows;
+    let where = { tenant_id: tenantId };
+    if (movementType !== 'all') {
+      where.type = movementType;
     }
 
+    const itemWhere = {};
+    if (branchId !== undefined && branchId !== null && branchId !== '') {
+      itemWhere.branch_id = branchId;
+    }
+
+    const inventoryLogs = await InventoryLog.findAll({
+      where: { ...where, ...filterCondition },
+      include: [
+        {
+          model: InventoryItem,
+          as: 'InventoryItem',
+          attributes: ['title', 'unit'],
+          where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+          required: Object.keys(itemWhere).length > 0 ? true : false,
+        }
+      ],
+      attributes: [
+        'id',
+        'inventory_item_id',
+        [sequelize.col('InventoryItem.title'), 'title'],
+        [sequelize.col('InventoryItem.unit'), 'unit'],
+        'type',
+        ['quantity_change', 'quantity'],
+        'note',
+        'created_by',
+        'created_at'
+      ],
+      order: [['created_at', 'DESC']],
+    });
+    return inventoryLogs;
   } catch (error) {
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
-exports.getCummulativeInventoryMovementsDB = async (type, from, to, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getCummulativeInventoryMovementsDB = async (type, from, to, tenantId, branchId) => {
   try {
-    const { filter, params } = getFilterCondition('l.created_at', type, from, to);
+    const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-    const sql = `
-      SELECT
-        l.inventory_item_id,
-        i.title,
-        i.unit,
-        SUM(CASE WHEN l.type = 'in' THEN l.quantity_change ELSE 0 END) AS total_in,
-        SUM(CASE WHEN l.type = 'out' THEN l.quantity_change ELSE 0 END) AS total_out,
-        SUM(CASE WHEN l.type = 'wastage' THEN l.quantity_change ELSE 0 END) AS total_wastage,
-        COUNT(*) AS movement_count
-      FROM inventory_logs l
-      JOIN inventory_items i ON i.id = l.inventory_item_id
-      WHERE l.tenant_id = ? AND ${filter}
-      GROUP BY l.inventory_item_id
-      ORDER BY (total_in + total_out + total_wastage) DESC
-    `;
+    const itemWhere = {};
+    if (branchId !== undefined && branchId !== null && branchId !== '') {
+      itemWhere.branch_id = branchId;
+    }
 
-    const [rows] = await conn.query(sql, [tenantId, ...params]);
-    return rows;
+    const movements = await InventoryLog.findAll({
+      attributes: [
+        'inventory_item_id',
+        [sequelize.col('InventoryItem.title'), 'title'],
+        [sequelize.col('InventoryItem.unit'), 'unit'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN InventoryLog.type = 'IN' THEN InventoryLog.quantity_change ELSE 0 END")), 'total_in'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN InventoryLog.type = 'OUT' THEN InventoryLog.quantity_change ELSE 0 END")), 'total_out'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN InventoryLog.type = 'WASTAGE' THEN InventoryLog.quantity_change ELSE 0 END")), 'total_wastage'],
+        [sequelize.fn('COUNT', sequelize.col('InventoryLog.id')), 'movement_count']
+      ],
+      include: [
+        {
+          model: InventoryItem,
+          as: 'InventoryItem',
+          attributes: [],
+          where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+          required: true,
+        }
+      ],
+      where: { tenant_id: tenantId, ...filterCondition },
+      group: ['inventory_item_id', 'InventoryItem.title', 'InventoryItem.unit'],
+      order: [[sequelize.literal('(total_in + total_out + total_wastage)'), 'DESC']],
+      raw: true,
+    });
+    return movements;
   } catch (error) {
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
-exports.getInventoryUsageVsCurrentStockDB = async (type, from, to, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getInventoryUsageVsCurrentStockDB = async (type, from, to, tenantId, branchId) => {
   try {
-    const { filter, params } = getFilterCondition('l.created_at', type, from, to);
+    const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-    const sql = `
-      SELECT
-        i.id AS inventory_item_id,
-        i.title,
-        i.quantity AS current_stock,
-        i.min_quantity_threshold,
-        i.unit,
-        i.status,
-        SUM(CASE WHEN l.type = 'out' THEN l.quantity_change ELSE 0 END) AS total_usage
-      FROM inventory_items i
-      LEFT JOIN inventory_logs l
-        ON l.inventory_item_id = i.id AND l.tenant_id = i.tenant_id AND ${filter}
-      WHERE i.tenant_id = ?
-      GROUP BY i.id
-      ORDER BY total_usage DESC
-    `;
+    const itemWhere = { tenant_id: tenantId };
+    if (branchId !== undefined && branchId !== null && branchId !== '') {
+      itemWhere.branch_id = branchId;
+    }
 
-    const [rows] = await conn.query(sql, [...params, tenantId]);
-    return rows;
+    const usageVsStock = await InventoryItem.findAll({
+      attributes: [
+        ['id', 'inventory_item_id'],
+        'title',
+        ['quantity', 'current_stock'],
+        'min_quantity_threshold',
+        'unit',
+        'status',
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN InventoryLogs.type = 'OUT' THEN InventoryLogs.quantity_change ELSE 0 END")), 'total_usage']
+      ],
+      include: [
+        {
+          model: InventoryLog,
+          as: 'InventoryLogs', // Use the alias defined in associations
+          attributes: [],
+          where: { tenant_id: tenantId, ...filterCondition },
+          required: false // LEFT JOIN
+        }
+      ],
+      where: itemWhere,
+      group: ['InventoryItem.id', 'InventoryLogs.inventory_item_id'], // Group by both to ensure correct aggregation
+      order: [[sequelize.literal('total_usage'), 'DESC']],
+      raw: true,
+    });
+    return usageVsStock;
   } catch (error) {
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
 const getFilterCondition = (field, type, from, to) => {
-  const params = [];
-  let filter = '';
+  let where = {};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   switch (type) {
       case 'custom': {
-          params.push(from, to);
-          filter = `DATE(${field}) >= ? AND DATE(${field}) <= ?`;
+          where[field] = {
+              [Op.between]: [new Date(from), new Date(to)]
+          };
           break;
       }
       case 'today': {
-          filter = `DATE(${field}) = CURDATE()`;
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          where[field] = {
+              [Op.gte]: today,
+              [Op.lt]: tomorrow
+          };
           break;
       }
       case 'this_month': {
-          filter = `YEAR(${field}) = YEAR(NOW()) AND MONTH(${field}) = MONTH(NOW())`;
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: startOfMonth,
+              [Op.lte]: endOfMonth
+          };
           break;
       }
       case 'last_month': {
-          // filter = `DATE(${field}) >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND DATE(${field}) <= CURDATE()`;
-          filter = `MONTH(${field}) = MONTH(DATE_ADD(NOW(), INTERVAL -1 MONTH)) AND YEAR(${field}) = YEAR(DATE_ADD(NOW(), INTERVAL -1 MONTH))`;
+          const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: startOfLastMonth,
+              [Op.lte]: endOfLastMonth
+          };
           break;
       }
       case 'last_7days': {
-          filter = `DATE(${field}) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND DATE(${field}) <= CURDATE()`;
+          const sevenDaysAgo = new Date(today);
+          sevenDaysAgo.setDate(today.getDate() - 7);
+          where[field] = {
+              [Op.gte]: sevenDaysAgo,
+              [Op.lte]: today
+          };
           break;
       }
       case 'yesterday': {
-          filter = `DATE(${field}) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`;
+          const yesterday = new Date(today);
+          yesterday.setDate(today.getDate() - 1);
+          const endOfYesterday = new Date(yesterday);
+          endOfYesterday.setHours(23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: yesterday,
+              [Op.lt]: endOfYesterday
+          };
           break;
       }
       case 'tomorrow': {
-          filter = `DATE(${field}) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)`;
+          const tomorrow = new Date(today);
+          tomorrow.setDate(today.getDate() + 1);
+          const endOfTomorrow = new Date(tomorrow);
+          endOfTomorrow.setHours(23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: tomorrow,
+              [Op.lt]: endOfTomorrow
+          };
           break;
       }
       default: {
-          filter = '';
+          // No specific date filter
       }
   }
 
-  return { params, filter };
+  return { where };
 }
 
 /* inventory_vendors */
-exports.addVendorDB = async (phone, name, contactPerson, addressLine1, addressLine2, city, state, country, zipcode, taxIdNo, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.addVendorDB = async (phone, name, contactPerson, addressLine1, addressLine2, city, state, country, zipcode, taxIdNo, tenantId, branchId) => {
     try {
-
-        const sql = `
-        INSERT INTO inventory_vendors
-        (phone, name, contact_person, address_line1, address_line2, city, state, country, zipcode, tax_id_no, tenant_id)
-        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [phone, name, contactPerson, addressLine1, addressLine2, city, state, country, zipcode, taxIdNo, tenantId]);
-
-        return result.insertId;
+        const vendor = await InventoryVendor.create({
+            phone: phone,
+            name: name,
+            contact_person: contactPerson,
+            address_line1: addressLine1,
+            address_line2: addressLine2,
+            city: city,
+            state: state,
+            country: country,
+            zipcode: zipcode,
+            tax_id_no: taxIdNo,
+            tenant_id: tenantId,
+            branch_id: branchId
+        });
+        return vendor.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.getVendorsDB = async(page, perPage, sort, filter, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getVendorsDB = async(page, perPage, sort, filter, tenantId, branchId) => {
     try {
-
-        // Validate and sanitize inputs
         const currentPage = parseInt(page) || 1;
-        const limit = parseInt(perPage) || 10; // Define default page size
+        const limit = parseInt(perPage) || 10;
         const offset = (currentPage - 1) * limit;
-        const sortedBy = sort ? `ORDER BY ${escape(sort)}` : 'ORDER BY created_at DESC'; // Add sorting based on query param
 
-        // Build filter query based on 'filter' param (use appropriate library for complex filters)
-        const filterQuery = filter ? `WHERE (name LIKE '${filter}%' OR phone='${filter}') AND tenant_id=${tenantId}` : `WHERE tenant_id=${tenantId}`;
+        let order = [['created_at', 'DESC']];
+        if (sort) {
+            const [column, direction] = sort.split(':');
+            order = [[column, direction || 'ASC']];
+        }
 
-        const [vendors] = await conn.execute(
-            `SELECT id, phone, name, contact_person, address_line1, address_line2, city, state, country, zipcode, tax_id_no, created_at FROM inventory_vendors ${filterQuery} ${sortedBy} LIMIT ${limit} OFFSET ${offset} ;`
-        );
+        let whereCondition = { tenant_id: tenantId, branch_id: branchId };
+        if (filter) {
+            whereCondition = {
+                ...whereCondition,
+                [Op.or]: [
+                    { name: { [Op.like]: `${filter}%` } },
+                    { phone: filter }
+                ]
+            };
+        }
 
-        // Prepared statement for total customer count
-        const [totalVendors] = await conn.execute(
-            `SELECT COUNT(*) AS total FROM inventory_vendors ${filterQuery} ;`
-        );
+        const { count, rows: vendors } = await InventoryVendor.findAndCountAll({
+            where: whereCondition,
+            attributes: ['id', 'phone', 'name', 'contact_person', 'address_line1', 'address_line2', 'city', 'state', 'country', 'zipcode', 'tax_id_no', 'created_at'],
+            order: order,
+            limit: limit,
+            offset: offset,
+        });
 
-        // Prepare response data
         const response = {
             vendors,
             currentPage,
             perPage,
-            totalPages: Math.ceil(totalVendors[0].total / limit),
-            totalVendors: totalVendors[0].total
+            totalPages: Math.ceil(count / limit),
+            totalVendors: count
         };
-
-
 
         return response;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.getAllVendorsDB = async(tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getAllVendorsDB = async(tenantId, branchId) => {
     try {
-        const sql = `
-        SELECT id, phone, name, contact_person, address_line1, address_line2, city, state, country, zipcode, tax_id_no, created_at FROM inventory_vendors
-        WHERE
-            tenant_id = ?
-        ORDER BY
-            created_at DESC
-        `
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result;
+        const vendors = await InventoryVendor.findAll({
+            where: { tenant_id: tenantId, branch_id: branchId },
+            attributes: ['id', 'phone', 'name', 'contact_person', 'address_line1', 'address_line2', 'city', 'state', 'country', 'zipcode', 'tax_id_no', 'created_at'],
+            order: [['created_at', 'DESC']]
+        });
+        return vendors;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
-exports.getVendorDB = async(id, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getVendorDB = async(id, tenantId, branchId) => {
   try {
-
-      const [result] = await conn.execute(
-          `SELECT id, phone, name, contact_person, address_line1, address_line2, city, state, country, zipcode, tax_id_no, created_at FROM inventory_vendors
-          WHERE id = ? AND tenant_id = ?
-          LIMIT 1;`,
-          [id, tenantId]
-      );
-
-      return result[0];
+      const vendor = await InventoryVendor.findOne({
+          where: { id: id, tenant_id: tenantId, branch_id: branchId },
+          attributes: ['id', 'phone', 'name', 'contact_person', 'address_line1', 'address_line2', 'city', 'state', 'country', 'zipcode', 'tax_id_no', 'created_at']
+      });
+      return vendor;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 }
 
-exports.searchVendorDB = async(searchString, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.searchVendorDB = async(searchString, tenantId, branchId) => {
   try {
-
-      const [result] = await conn.execute(
-          `
-          SELECT id, phone, name, contact_person, address_line1, address_line2, city, state, country, zipcode, tax_id_no, created_at FROM inventory_vendors
-          WHERE (phone LIKE ? OR name LIKE ?) AND tenant_id = ?
-          LIMIT 10
-          ;`,
-          [`${searchString}%`, `%${searchString}%`, tenantId]
-      );
-
-      return result;
+      const vendors = await InventoryVendor.findAll({
+          where: {
+              [Op.or]: [
+                  { phone: { [Op.like]: `${searchString}%` } },
+                  { name: { [Op.like]: `%${searchString}%` } }
+              ],
+              tenant_id: tenantId,
+              branch_id: branchId
+          },
+          attributes: ['id', 'phone', 'name', 'contact_person', 'address_line1', 'address_line2', 'city', 'state', 'country', 'zipcode', 'tax_id_no', 'created_at'],
+          limit: 10
+      });
+      return vendors;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 }
 
-exports.updateVendorDB = async (id, phone, name, contactPerson, addressLine1, addressLine2, city, state, country, zipcode, taxIdNo, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.updateVendorDB = async (id, phone, name, contactPerson, addressLine1, addressLine2, city, state, country, zipcode, taxIdNo, tenantId, branchId) => {
   try {
-
-      const sql = `
-      UPDATE inventory_vendors
-      SET
-      name = ?, phone = ?, contact_person = ?, address_line1 = ?,
-      address_line2 = ?, city = ?, state = ?, country = ?, zipcode = ?, tax_id_no = ?, updated_at = NOW()
-      WHERE id = ? AND tenant_id = ?
-      `;
-
-      await conn.query(sql, [name, phone, contactPerson, addressLine1, addressLine2, city, state, country, zipcode, taxIdNo, id, tenantId]);
+      await InventoryVendor.update(
+          {
+              name: name,
+              phone: phone,
+              contact_person: contactPerson,
+              address_line1: addressLine1,
+              address_line2: addressLine2,
+              city: city,
+              state: state,
+              country: country,
+              zipcode: zipcode,
+              tax_id_no: taxIdNo,
+              updated_at: new Date(),
+          },
+          {
+              where: { id: id, tenant_id: tenantId, branch_id: branchId }
+          }
+      );
       return;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 };
 
-exports.deleteVendorDB = async (id, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.deleteVendorDB = async (id, tenantId, branchId) => {
   try {
-
-      const sql = `
-      DELETE FROM inventory_vendors
-      WHERE id = ? AND tenant_id = ?;
-      `;
-
-      await conn.query(sql, [id, tenantId]);
-
+      await InventoryVendor.destroy({
+          where: { id: id, tenant_id: tenantId, branch_id: branchId }
+      });
       return;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 };
 /* inventory_vendors */
 
 /* Purchase Orders */
-exports.addItemToPurchaseOrdersDraftsDB = async (inventoryItemId, tenantId, quantity) => {
-  const conn = await getMySqlPromiseConnection();
+exports.addItemToPurchaseOrdersDraftsDB = async (inventoryItemId, tenantId, quantity, branchId) => {
   try {
-
-      const sql = `
-      INSERT INTO inventory_purchase_orders_drafts
-      (item_id, quantity, tenant_id, created_at)
-      VALUES
-      (?, ?, ?, NOW());
-      `;
-
-      const [result] = await conn.query(sql, [inventoryItemId, quantity, tenantId]);
-
-      return result.insertId;
+      const draftItem = await InventoryPurchaseOrderDraft.create({
+          item_id: inventoryItemId,
+          quantity: quantity,
+          tenant_id: tenantId,
+          branch_id: branchId,
+          created_at: new Date(),
+      });
+      return draftItem.id;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 };
-exports.addBulkItemsToPurchaseOrdersDraftsDB = async (items) => {
-  const conn = await getMySqlPromiseConnection();
+exports.addBulkItemsToPurchaseOrdersDraftsDB = async (items, branchId) => {
   try {
-
-      const sql = `
-      INSERT INTO inventory_purchase_orders_drafts
-      (item_id, quantity, tenant_id)
-      VALUES
-      ?
-      `;
-
-      const [result] = await conn.query(sql, [items]);
-
+      await InventoryPurchaseOrderDraft.bulkCreate(items.map(item => ({...item, branch_id: branchId})));
       return;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 };
-exports.getPurchaseOrderDraftsDB = async(tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getPurchaseOrderDraftsDB = async(tenantId, branchId) => {
   try {
-
-      const [result] = await conn.execute(
-        `
-        SELECT
-        inv_pod.id, item_id,
-        inv_pod.quantity, inv_pod.created_at,
-        inv_items.title,
-        inv_items.unit
-        FROM inventory_purchase_orders_drafts inv_pod
-        LEFT JOIN inventory_items inv_items ON inv_pod.item_id = inv_items.id
-        WHERE inv_pod.tenant_id = ?
-        `,
-        [tenantId]
-      );
-
-      return result;
+      const drafts = await InventoryPurchaseOrderDraft.findAll({
+          where: { tenant_id: tenantId, branch_id: branchId },
+          include: [
+              {
+                  model: InventoryItem,
+                  as: 'Item',
+                  attributes: ['title', 'unit'],
+                  required: false // LEFT JOIN
+              }
+          ],
+          attributes: [
+              'id',
+              'item_id',
+              'quantity',
+              'created_at',
+              [sequelize.col('InventoryItem.title'), 'title'],
+              [sequelize.col('InventoryItem.unit'), 'unit']
+          ],
+      });
+      return drafts;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 }
-exports.updatePurchaseOrderDraftItemQuantityDB = async (id, quantity, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.updatePurchaseOrderDraftItemQuantityDB = async (id, quantity, tenantId, branchId) => {
   try {
-
-      const sql = `
-      UPDATE inventory_purchase_orders_drafts
-      SET
-      quantity = ?, updated_at = NOW()
-      WHERE id = ? AND tenant_id = ?
-      `;
-
-      await conn.query(sql, [quantity, id, tenantId]);
+      await InventoryPurchaseOrderDraft.update(
+          { quantity: quantity, updated_at: new Date() },
+          { where: { id: id, tenant_id: tenantId, branch_id: branchId } }
+      );
       return;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 };
-exports.deletePurchaseOrderDraftItemDB = async (id, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.deletePurchaseOrderDraftItemDB = async (id, tenantId, branchId) => {
   try {
-
-      const sql = `
-      DELETE FROM inventory_purchase_orders_drafts
-      WHERE id = ? AND tenant_id = ?
-      `;
-
-      await conn.query(sql, [id, tenantId]);
+      await InventoryPurchaseOrderDraft.destroy({
+          where: { id: id, tenant_id: tenantId, branch_id: branchId }
+      });
       return;
   } catch (error) {
       console.error(error);
       throw error;
-  } finally {
-      conn.release();
   }
 };
 
-exports.createPurchaseOrderDB = async (vendorId, vendorName, contactPerson, taxIdNo, address, notes, items, userId, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.createPurchaseOrderDB = async (vendorId, vendorName, contactPerson, taxIdNo, address, notes, items, userId, tenantId, branchId) => {
+  const t = await sequelize.transaction();
   try {
-    await conn.beginTransaction()
-
     // get PO sequence
     let purchaseOrderId = 0;
+    const sequence = await Sequence.findOne({
+      where: { tenant_id: tenantId, branch_id: branchId, table_name: 'inventory_purchase_orders' },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-    const [orderIdRes] = await conn.query(`SELECT current_value FROM sequences WHERE tenant_id = ? AND table_name='inventory_purchase_orders' LIMIT 1 FOR UPDATE`, [tenantId])
-    if(orderIdRes.length > 0) {
-      purchaseOrderId = Number(orderIdRes[0]?.current_value || 0)
+    if (sequence) {
+      purchaseOrderId = Number(sequence.current_value);
     }
-
-    purchaseOrderId += 1
+    purchaseOrderId += 1;
 
     // insert into po
-    await conn.query(`
-      INSERT INTO inventory_purchase_orders (id, tenant_id, created_at, vendor_id, vendor_name, contact_person, tax_id_no, address, created_by, notes, status) VALUES (?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [purchaseOrderId, tenantId, vendorId, vendorName, contactPerson, taxIdNo, address, userId, notes, 'ordered'])
+    await InventoryPurchaseOrder.create({
+      id: purchaseOrderId,
+      tenant_id: tenantId,
+      branch_id: branchId,
+      created_at: new Date(),
+      vendor_id: vendorId,
+      vendor_name: vendorName,
+      contact_person: contactPerson,
+      tax_id_no: taxIdNo,
+      address: address,
+      created_by: userId,
+      notes: notes,
+      status: 'ordered',
+    }, { transaction: t });
 
-    const itemsParams = items.map((item)=>[purchaseOrderId, tenantId, item.item_id, item.title, item.unit, item.quantity])
+    const itemsParams = items.map((item) => ({
+      purchase_order_id: purchaseOrderId,
+      tenant_id: tenantId,
+      branch_id: branchId,
+      inventory_item_id: item.item_id,
+      inventory_item_name: item.title,
+      inventory_item_unit: item.unit,
+      quantity: item.quantity,
+    }));
 
     // insert into po items
-    await conn.query(`
-      INSERT INTO inventory_purchase_order_items (purchase_order_id, tenant_id, inventory_item_id, inventory_item_name, inventory_item_unit, quantity) VALUES ?
-    `, [itemsParams])
+    await InventoryPurchaseOrderItem.bulkCreate(itemsParams, { transaction: t });
 
     // delete from drafts
-    await conn.query(`DELETE FROM inventory_purchase_orders_drafts WHERE id IN (?) AND tenant_id = ?`, [items.map((item)=>item.id), tenantId])
+    await InventoryPurchaseOrderDraft.destroy({
+      where: { id: { [Op.in]: items.map((item) => item.id) }, tenant_id: tenantId, branch_id: branchId },
+      transaction: t,
+    });
 
     // update sequence
-    await conn.query(
-      `INSERT INTO sequences
-      (tenant_id, table_name, current_value)
-      VALUES (?, 'inventory_purchase_orders', ?)
-      ON DUPLICATE KEY UPDATE
-      current_value = VALUES(current_value)
-      `
-      , [tenantId, purchaseOrderId]);
+    await Sequence.upsert(
+      {
+        tenant_id: tenantId,
+        branch_id: branchId,
+        table_name: 'inventory_purchase_orders',
+        current_value: purchaseOrderId,
+      },
+      { transaction: t }
+    );
 
-    await conn.commit();
+    await t.commit();
     return;
   } catch (error) {
-    await conn.rollback();
+    await t.rollback();
     console.error(error);
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
@@ -793,47 +801,39 @@ exports.updatePurchaseOrderToCompleteDB = async (
   id,
   fullfilledDate,
   userId,
-  tenantId
+  tenantId,
+  branchId
 ) => {
-  const conn = await getMySqlPromiseConnection();
+  const t = await sequelize.transaction();
   try {
-    await conn.beginTransaction();
-
-    const sql = `
-      UPDATE inventory_purchase_orders
-      SET
-      status = 'completed', fullfilled_at = ?
-      WHERE id = ? AND tenant_id = ?
-      `;
-
-    await conn.query(sql, [fullfilledDate, id, tenantId]);
+    await InventoryPurchaseOrder.update(
+      {
+        status: 'completed',
+        fullfilled_at: fullfilledDate,
+      },
+      { where: { id: id, tenant_id: tenantId, branch_id: branchId }, transaction: t }
+    );
 
     // Add to inventory
-    const [purchaseOrderItems] = await conn.query(
-      `
-        SELECT inventory_item_id, quantity FROM inventory_purchase_order_items
-        WHERE purchase_order_id = ? AND tenant_id = ?
-      `,
-      [id, tenantId]
-    );
+    const purchaseOrderItems = await InventoryPurchaseOrderItem.findAll({
+      where: { purchase_order_id: id, tenant_id: tenantId, branch_id: branchId },
+      attributes: ['inventory_item_id', 'quantity'],
+      transaction: t
+    });
 
     const inventoryItemIds = purchaseOrderItems.map(
       (item) => item.inventory_item_id
     );
 
-    const [inventoryItems] = await conn.query(
-      `
-        SELECT id, quantity FROM inventory_items
-        WHERE id IN (?) AND tenant_id = ?
-        FOR UPDATE
-      `,
-      [inventoryItemIds, tenantId]
-    );
+    const inventoryItems = await InventoryItem.findAll({
+      where: { id: { [Op.in]: inventoryItemIds }, tenant_id: tenantId, branch_id: branchId },
+      attributes: ['id', 'quantity', 'min_quantity_threshold'],
+      lock: t.LOCK.UPDATE,
+      transaction: t
+    });
 
-    const inventoryUpdates = [];
     const inventoryLogs = [];
-
-    purchaseOrderItems.forEach((poItem) => {
+    for (const poItem of purchaseOrderItems) {
       const inventoryItem = inventoryItems.find(
         (item) => item.id === poItem.inventory_item_id
       );
@@ -841,133 +841,144 @@ exports.updatePurchaseOrderToCompleteDB = async (
         const previousQuantity = parseFloat(inventoryItem.quantity);
         const newQuantity = previousQuantity + parseFloat(poItem.quantity);
 
-        // Prepare inventory update
-        inventoryUpdates.push([newQuantity, inventoryItem.id, tenantId]);
+        // Update inventory quantity and status
+        let status = 'out';
+        if (newQuantity > 0 && newQuantity <= inventoryItem.min_quantity_threshold) {
+          status = 'low';
+        } else if (newQuantity > inventoryItem.min_quantity_threshold) {
+          status = 'in';
+        }
+
+        await InventoryItem.update(
+          { quantity: newQuantity, status: status },
+          { where: { id: inventoryItem.id, tenant_id: tenantId, branch_id: branchId }, transaction: t }
+        );
 
         // Prepare inventory log
-        inventoryLogs.push([
-          tenantId,
-          inventoryItem.id,
-          "IN",
-          poItem.quantity,
-          previousQuantity,
-          newQuantity,
-          `Purchase Order #${id} fulfilled`,
-          userId,
-          new Date(),
-        ]);
+        inventoryLogs.push({
+          tenant_id: tenantId,
+          branch_id: branchId,
+          inventory_item_id: inventoryItem.id,
+          type: "IN",
+          quantity_change: poItem.quantity,
+          previous_quantity: previousQuantity,
+          new_quantity: newQuantity,
+          note: `Purchase Order #${id} fulfilled`,
+          created_by: userId,
+          created_at: new Date(),
+        });
       }
-    });
-
-    // Update inventory quantities
-    for (const [newQuantity, itemId, tenantId] of inventoryUpdates) {
-      await conn.query(
-        `
-          UPDATE inventory_items
-          SET quantity = ?
-          WHERE id = ? AND tenant_id = ?
-        `,
-        [newQuantity, itemId, tenantId]
-      );
     }
 
     // Add to inventory logs
     if (inventoryLogs.length > 0) {
-      await conn.query(
-        `
-          INSERT INTO inventory_logs
-          (tenant_id, inventory_item_id, type, quantity_change, previous_quantity, new_quantity, note, created_by, created_at)
-          VALUES ?
-        `,
-        [inventoryLogs]
-      );
+      await InventoryLog.bulkCreate(inventoryLogs, { transaction: t });
     }
 
-    // ENable Menu item again if disbaled and inventory items required for preparation are all available now
-    const [disabledMenuItems] = await conn.query(
-      `SELECT id FROM menu_items WHERE is_enabled = 0 AND tenant_id = ?`,
-      [tenantId]
-    );
+    // Enable Menu item again if disabled and inventory items required for preparation are all available now
+    const disabledMenuItems = await MenuItem.findAll({
+      where: { is_enabled: false, tenant_id: tenantId, branch_id: branchId },
+      attributes: ['id'],
+      transaction: t
+    });
 
     for (const menu of disabledMenuItems) {
       const menuItemId = menu.id;
 
       // Step 2: Get base recipe inventory requirements
-      const [recipes] = await conn.query(
-        `SELECT mir.inventory_item_id, mir.quantity, ii.quantity AS available_quantity
-        FROM menu_item_recipes mir
-        JOIN inventory_items ii ON mir.inventory_item_id = ii.id AND mir.tenant_id = ii.tenant_id
-        WHERE mir.menu_item_id = ? AND mir.variant_id = 0 AND mir.addon_id = 0 AND mir.tenant_id = ?`,
-        [menuItemId, tenantId]
-      );
+      const recipes = await MenuItemRecipe.findAll({
+        where: {
+          menu_item_id: menuItemId,
+          variant_id: 0,
+          addon_id: 0,
+          tenant_id: tenantId,
+          branch_id: branchId
+        },
+        include: [
+          {
+            model: InventoryItem,
+            as: 'Ingredient',
+            attributes: ['quantity'],
+          }
+        ],
+        attributes: ['inventory_item_id', 'quantity'],
+        transaction: t
+      });
 
       // Step 3: Check if all required items are available
       const canEnable = recipes.length > 0 && recipes.every(r =>
-        parseFloat(r.available_quantity) >= parseFloat(r.quantity)
+        parseFloat(r.Item.quantity) >= parseFloat(r.quantity)
       );
 
       // Step 4: Enable if all ingredients are sufficient
       if (canEnable) {
-        await conn.query(
-          `UPDATE menu_items SET is_enabled = 1 WHERE id = ? AND tenant_id = ?`,
-          [menuItemId, tenantId]
+        await MenuItem.update(
+          { is_enabled: true },
+          { where: { id: menuItemId, tenant_id: tenantId, branch_id: branchId }, transaction: t }
         );
       }
     }
 
-    await conn.commit();
+    await t.commit();
     return;
   } catch (error) {
-    await conn.rollback();
+    await t.rollback();
     console.error(error);
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
-exports.getPurchaseOrdersDB = async (type, from, to, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getPurchaseOrdersDB = async (type, from, to, tenantId, branchId) => {
   try {
-    const { filter, params } = getFilterCondition(
-      `po.created_at`,
-      type,
-      from,
-      to
-    );
+    const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-    const sql = `
-        SELECT id, tenant_id, created_at, fullfilled_at, vendor_id, vendor_name, contact_person, tax_id_no, address, created_by, notes, status
-        FROM rasoirasta.inventory_purchase_orders po
-        WHERE ${filter} AND tenant_id = ?
-        ORDER BY po.created_at DESC
-        `;
-
-    const [results] = await conn.query(sql, [...params, tenantId]);
-    return results;
+    const purchaseOrders = await InventoryPurchaseOrder.findAll({
+      where: { ...filterCondition, tenant_id: tenantId, branch_id: branchId },
+      attributes: [
+        'id',
+        'tenant_id',
+        'created_at',
+        'fullfilled_at',
+        'vendor_id',
+        'vendor_name',
+        'contact_person',
+        'tax_id_no',
+        'address',
+        'created_by',
+        'notes',
+        'status'
+      ],
+      order: [['created_at', 'DESC']],
+    });
+    return purchaseOrders;
   } catch (error) {
     console.error(error);
     throw error;
-  } finally {
-    conn.release();
   }
 };
 
-exports.getPurchaseOrderItemsDB = async (purchaseOrderIds, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getPurchaseOrderItemsDB = async (purchaseOrderIds, tenantId, branchId) => {
   try {
-    const sql = `
-      SELECT id, purchase_order_id, tenant_id, inventory_item_id, inventory_item_name, inventory_item_unit, quantity FROM inventory_purchase_order_items
-      WHERE purchase_order_id IN (?) AND tenant_id = ?
-    `;
-
-    const [results] = await conn.query(sql, [purchaseOrderIds, tenantId]);
-    return results;
+    const purchaseOrderItems = await InventoryPurchaseOrderItem.findAll({
+      where: {
+        purchase_order_id: { [Op.in]: purchaseOrderIds },
+        tenant_id: tenantId,
+        branch_id: branchId
+      },
+      attributes: [
+        'id',
+        'purchase_order_id',
+        'tenant_id',
+        'inventory_item_id',
+        'inventory_item_name',
+        'inventory_item_unit',
+        'quantity'
+      ],
+    });
+    return purchaseOrderItems;
   } catch (error) {
     console.error(error);
     throw error;
-  } finally {
-    conn.release();
   }
 };
 

@@ -5,6 +5,8 @@
 	"facing_issues_try_later": "We're facing some issues! Please try later!",
 	"account_exists_try_login": "Account already exists with provided email! Try Login!",
 	"account_created_login_now": "Account Created Successfully, You can login now!",
+	"invalid_ghana_phone_number": "Please provide a valid Ghanaian phone number (e.g. 024XXXXXXX or +23324XXXXXXX)!",
+	"weak_password_error": "Password must be at least 8 characters long and contain uppercase, lowercase, a number, and a special character!",
 	"cant_register_try_later": "Can't Register right now! Please try later!",
 	"logout_successful": "Logout Successful.",
 	"something_went_wrong_try_later": "Something went wrong! Please try later!",
@@ -106,6 +108,8 @@
 	"category_updated": "Category Updated.",
 	"category_deleted": "Category Deleted.",
 	"category_visibility_updated": "Category Visibility Updated.",
+	"categories_bulk_uploaded_successfully": "Categories bulk uploaded successfully. Imported: {{count}} categories.",
+	"no_valid_categories_found_in_file": "No valid categories found in CSV file.",
 	"provide_required_fields": "Please provide all required fields: title, quantity, unit, low stock qty!",
 	"inventory_item_added_success": "Inventory Item Added Successfully.",
 	"failed_to_fetch_inventory_items": "Failed to fetch inventory items.",
@@ -128,5 +132,8 @@
 	"invalid_tenant_slug_format": "Invalid tenant slug format. Use lowercase alphanumeric characters and hyphens only.",
 	"tenant_slug_updated_successfully": "Tenant slug updated successfully!",
 	"store_not_found": "Store not found!",
-	"tenant_subscription_updated_successfully": "Tenant subscription updated successfully!"
+	"tenant_subscription_updated_successfully": "Tenant subscription updated successfully!",
+	"branch_switched_successfully": "branch_switched_successfully",
+	"no_valid_menu_items_found_in_file": "no_valid_menu_items_found_in_file",
+	"menu_items_bulk_uploaded_successfully": "menu_items_bulk_uploaded_successfully"
 }

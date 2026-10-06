@@ -9,8 +9,9 @@ const {
 exports.getOrders = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
 
-    const {kitchenOrders,kitchenOrdersItems,addons} = await getOrdersDB(tenantId);
+    const {kitchenOrders,kitchenOrdersItems,addons} = await getOrdersDB(tenantId, branchId);
 
     const formattedOrders = kitchenOrders.map((order)=>{
       const orderItems = kitchenOrdersItems.filter((oi)=>oi.order_id == order.id);
@@ -81,10 +82,11 @@ exports.getOrders = async (req, res) => {
 exports.getOrdersInit = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const [paymentTypes, printSettings, storeSettings] = await Promise.all([
-      getPaymentTypesDB(true, tenantId),
-      getPrintSettingDB(tenantId),
-      getStoreSettingDB(tenantId),
+      getPaymentTypesDB(true, tenantId, branchId),
+      getPrintSettingDB(tenantId, branchId),
+      getStoreSettingDB(tenantId, branchId),
     ]);
 
     return res.status(200).json({
@@ -104,6 +106,7 @@ exports.getOrdersInit = async (req, res) => {
 exports.updateKitchenOrderItemStatus = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const orderItemId = req.params.id;
     const { status } = req.body
 
@@ -114,7 +117,7 @@ exports.updateKitchenOrderItemStatus = async (req, res) => {
       });
     }
 
-    await updateOrderItemStatusDB(orderItemId, status, tenantId)
+    await updateOrderItemStatusDB(orderItemId, status, tenantId, branchId)
 
     return res.status(200).json({
       success: true,
@@ -132,6 +135,7 @@ exports.updateKitchenOrderItemStatus = async (req, res) => {
 exports.cancelKitchenOrder = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const { orderIds } = req.body
 
     if(!orderIds || orderIds?.length == 0) {
@@ -141,7 +145,7 @@ exports.cancelKitchenOrder = async (req, res) => {
       });
     }
 
-    await cancelOrderDB(orderIds, tenantId);
+    await cancelOrderDB(orderIds, tenantId, branchId);
 
     return res.status(200).json({
       success: true,
@@ -159,6 +163,7 @@ exports.cancelKitchenOrder = async (req, res) => {
 exports.completeKitchenOrder = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const { orderIds } = req.body
 
     if(!orderIds || orderIds?.length == 0) {
@@ -168,7 +173,7 @@ exports.completeKitchenOrder = async (req, res) => {
       });
     }
 
-    await completeOrderDB(orderIds, tenantId);
+    await completeOrderDB(orderIds, tenantId, branchId);
 
     return res.status(200).json({
       success: true,
@@ -186,6 +191,7 @@ exports.completeKitchenOrder = async (req, res) => {
 exports.getOrdersPaymentSummary = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const orderIds = req.body.orderIds;
 
     if(!orderIds || orderIds?.length == 0) {
@@ -198,8 +204,8 @@ exports.getOrdersPaymentSummary = async (req, res) => {
     const orderIdsParams = orderIds.join(",");
 
     const [ordersPaymentSummaryData, applicableServiceChargePercentage] = await Promise.all([
-      getOrdersPaymentSummaryDB(orderIdsParams, tenantId),
-      getServiceChargeDB(tenantId),
+      getOrdersPaymentSummaryDB(orderIdsParams, tenantId, branchId),
+      getServiceChargeDB(tenantId, branchId),
     ]);
 
     const { kitchenOrders, kitchenOrdersItems, addons } = ordersPaymentSummaryData;
@@ -302,6 +308,7 @@ exports.getOrdersPaymentSummary = async (req, res) => {
 exports.payAndCompleteKitchenOrder = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const { orderIds, subTotal, taxTotal, serviceChargeTotal, total, selectedPaymentType } = req.body
 
     if(!orderIds || orderIds?.length == 0) {
@@ -315,12 +322,12 @@ exports.payAndCompleteKitchenOrder = async (req, res) => {
     const date = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
     // get invoice id
-    const invoiceId = await createInvoiceDB(subTotal, taxTotal, serviceChargeTotal, total, date, selectedPaymentType, tenantId);
+    const invoiceId = await createInvoiceDB(subTotal, taxTotal, serviceChargeTotal, total, date, selectedPaymentType, tenantId, branchId);
 
-    await completeOrdersAndSaveInvoiceIdDB(orderIds, invoiceId, tenantId);
+    await completeOrdersAndSaveInvoiceIdDB(orderIds, invoiceId, tenantId, branchId);
 
     // get encrypted invoice id and customer id.
-    const result = await getEncryptedInvoiceIdDB(invoiceId, tenantId);
+    const result = await getEncryptedInvoiceIdDB(invoiceId, tenantId, branchId);
 
     return res.status(200).json({
       success: true,
@@ -340,6 +347,7 @@ exports.payAndCompleteKitchenOrder = async (req, res) => {
 exports.getInvoiceIdFromOrderId = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const { orderIds } = req.body
 
     if(!orderIds || orderIds?.length == 0) {
@@ -349,7 +357,7 @@ exports.getInvoiceIdFromOrderId = async (req, res) => {
       });
     }
 
-    const result = await getInvoiceIdFromOrderIdsDB(orderIds, tenantId);
+    const result = await getInvoiceIdFromOrderIdsDB(orderIds, tenantId, branchId);
 
     return res.status(200).json({
       invoiceId: result?.invoice_id || null,

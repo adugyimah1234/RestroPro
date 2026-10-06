@@ -25,6 +25,7 @@ import DevicesPage from "./views/SettingsViews/DevicesPage";
 import ContactSupport from "./views/SettingsViews/ContactSupportPage";
 import CategoriesPage from "./views/SettingsViews/CategoriesPage";
 import MenuItemViewPage from "./views/SettingsViews/MenuItemViewPage";
+import BranchesPage from "./views/SettingsViews/BranchesPage";
 import { NavbarContext } from "./contexts/NavbarContext";
 import { getIsNavbarCollapsed } from "./helpers/NavbarSettings";
 import PrintReceiptPage from "./views/PrintReceiptPage";
@@ -278,6 +279,7 @@ export default function App() {
               <Route path="tax-setup" element={<TaxSetupPage />} />
               <Route path="payment-types" element={<PaymentTypesPage />} />
               <Route path="food-photography" element={<ScopeProtectedRoute scopes={[SCOPES.SETTINGS]}><FoodPhotographyView /></ScopeProtectedRoute>} />
+              <Route path="branches" element={<BranchesPage />} />
 
             </Route>
           </Route>

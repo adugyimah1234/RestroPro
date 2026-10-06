@@ -1,357 +1,312 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { Order, Customer, Invoice, PaymentType, MenuItem, OrderItem, sequelize, Op } = require("../models");
 
 exports.getOrdersCountDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('date', type, from, to);
 
-        const {filter, params} = getFilterCondition('date', type, from, to);
-
-        const sql = `
-        SELECT
-            count(*) AS todays_orders
-        FROM
-            orders
-        WHERE
-            tenant_id = ? AND
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, [tenantId ,...params]);
-
-        return result[0].todays_orders;
+        const ordersCount = await Order.count({
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+        });
+        return ordersCount;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 
 exports.getNewCustomerCountDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const {filter, params} = getFilterCondition('created_at', type, from, to);
-
-        const sql = `
-        SELECT
-            count(*) AS new_customers_count
-        FROM
-            customers
-        WHERE
-        tenant_id = ? AND
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, [ tenantId , ...params]);
-
-        return result[0].new_customers_count;
+        const newCustomersCount = await Customer.count({
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+        });
+        return newCustomersCount;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.getRepeatCustomerCountDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('date', type, from, to);
 
-        const {filter, params} = getFilterCondition('date', type, from, to);
-
-        const sql = `
-        SELECT
-            COUNT(distinct customer_id) as todays_repeat_customers
-        FROM
-            orders
-        WHERE
-            tenant_id = ? AND
-            ${filter}
-            AND customer_type = 'CUSTOMER';
-        `;
-
-        const [result] = await conn.query(sql, [ tenantId, ...params]);
-
-        return result[0].todays_repeat_customers;
+        const repeatCustomersCount = await Order.count({
+            distinct: true,
+            col: 'customer_id',
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+                customer_type: 'CUSTOMER',
+            },
+        });
+        return repeatCustomersCount;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.getAverageOrderValueDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const {filter, params} = getFilterCondition('created_at', type, from, to);
-
-        const sql = `
-        SELECT
-            avg(total) AS avg_order_value
-        FROM
-            invoices
-        WHERE
-            tenant_id = ? AND
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, [tenantId, ...params]);
-
-        return result[0].avg_order_value;
+        const result = await Invoice.findOne({
+            attributes: [
+                [sequelize.fn('AVG', sequelize.col('total')), 'avg_order_value']
+            ],
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+            raw: true,
+        });
+        return result?.avg_order_value;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getTotalPaymentsByPaymentTypesDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        const {filter, params} = getFilterCondition('created_at', type, from, to);
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const sql = `
-        SELECT
-            i.payment_type_id,
-            pt.title,
-            SUM(total) as total
-        FROM
-            invoices i
-        INNER JOIN
-            payment_types pt
-        ON i.payment_type_id = pt.id AND i.tenant_id = pt.tenant_id
-        WHERE
-            i.tenant_id = ? AND
-            ${filter}
-        GROUP BY i.payment_type_id
-        `;
-
-        const [result] = await conn.query(sql, [tenantId, ...params]);
-
-        return result;
+        const payments = await Invoice.findAll({
+            attributes: [
+                'payment_type_id',
+                [sequelize.col('PaymentType.title'), 'title'],
+                [sequelize.fn('SUM', sequelize.col('total')), 'total']
+            ],
+            include: [
+                {
+                    model: PaymentType,
+                    as: 'PaymentType', // Assuming Invoice belongsTo PaymentType
+                    attributes: [],
+                    required: true, // INNER JOIN
+                }
+            ],
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+            group: ['payment_type_id', 'PaymentType.title'],
+            raw: true,
+        });
+        return payments;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getTotalCustomersDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        SELECT
-            count(*) AS total_customer
-        FROM
-            customers
-        WHERE tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result[0].total_customer;
+        const totalCustomers = await Customer.count({
+            where: { tenant_id: tenantId },
+        });
+        return totalCustomers;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.getRevenueDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const {filter, params} = getFilterCondition('created_at', type, from, to);
-
-        const sql = `
-        SELECT
-            SUM(total) AS total_revenue
-        FROM
-            invoices
-        WHERE
-            tenant_id = ? AND
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, [tenantId, ...params]);
-
-        return result[0].total_revenue;
+        const result = await Invoice.findOne({
+            attributes: [
+                [sequelize.fn('SUM', sequelize.col('total')), 'total_revenue']
+            ],
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+            raw: true,
+        });
+        return result?.total_revenue;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
-
+    }
 };
 
 exports.getTotalTaxDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const {filter, params} = getFilterCondition('created_at', type, from, to);
-
-        const sql = `
-        SELECT
-            SUM(tax_total) AS total_tax
-        FROM
-            invoices
-        WHERE
-            tenant_id = ? AND
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, [tenantId,...params]);
-
-        return result[0].total_tax;
+        const result = await Invoice.findOne({
+            attributes: [
+                [sequelize.fn('SUM', sequelize.col('tax_total')), 'total_tax']
+            ],
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+            raw: true,
+        });
+        return result?.total_tax;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.getTotalServiceChargeDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const {filter, params} = getFilterCondition('created_at', type, from, to);
-
-        const sql = `
-        SELECT
-            SUM(service_charge_total) AS total_service_charge
-        FROM
-            invoices
-        WHERE
-            tenant_id = ? AND
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, [tenantId,...params]);
-
-        return result[0].total_service_charge;
+        const result = await Invoice.findOne({
+            attributes: [
+                [sequelize.fn('SUM', sequelize.col('service_charge_total')), 'total_service_charge']
+            ],
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+            raw: true,
+        });
+        return result?.total_service_charge;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.getTotalNetRevenueDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const {filter, params} = getFilterCondition('created_at', type, from, to);
-
-        const sql = `
-        SELECT
-            SUM(sub_total) AS total_net_revenue
-        FROM
-            invoices
-        WHERE
-            tenant_id = ? AND
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, [tenantId, ...params]);
-
-        return result[0].total_net_revenue;
+        const result = await Invoice.findOne({
+            attributes: [
+                [sequelize.fn('SUM', sequelize.col('sub_total')), 'total_net_revenue']
+            ],
+            where: {
+                tenant_id: tenantId,
+                ...filterCondition,
+            },
+            raw: true,
+        });
+        return result?.total_net_revenue;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.getTopSellingItemsDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        const {filter, params} = getFilterCondition('date', type, from, to);
+        const { where: filterCondition } = getFilterCondition('date', type, from, to);
 
-        const sql = `
-        SELECT
-            mi.*,
-            oi_c.orders_count
-        FROM
-            menu_items mi
-            INNER JOIN (
-                SELECT
-                    item_id,
-                    SUM(quantity) AS orders_count
-                FROM
-                    order_items
-                WHERE
-                    tenant_id = ${tenantId} AND
-                    status <> 'cancelled'
-                    AND ${filter}
-                GROUP BY
-                    item_id
-                ) oi_c ON mi.id = oi_c.item_id
-        WHERE tenant_id = ${tenantId}
-        ORDER BY
-            oi_c.orders_count DESC;
-        `;
-
-        const [result] = await conn.query(sql, params);
-        return result;
+        const topSellingItems = await OrderItem.findAll({
+            attributes: [
+                'item_id',
+                [sequelize.fn('SUM', sequelize.col('quantity')), 'orders_count']
+            ],
+            where: {
+                tenant_id: tenantId,
+                status: { [Op.ne]: 'cancelled' },
+                ...filterCondition,
+            },
+            group: ['item_id'],
+            order: [[sequelize.literal('orders_count'), 'DESC']],
+            include: [{
+                model: MenuItem,
+                as: 'MenuItem',
+                attributes: ['title', 'price', 'image']
+            }]
+        });
+        return topSellingItems;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 const getFilterCondition = (field, type, from, to) => {
-    const params = [];
-    let filter = '';
+  let where = {};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    switch (type) {
-        case 'custom': {
-            params.push(from, to);
-            filter = `DATE(${field}) >= ? AND DATE(${field}) <= ?`;
-            break;
-        }
-        case 'today': {
-            filter = `DATE(${field}) = CURDATE()`;
-            break;
-        }
-        case 'this_month': {
-            filter = `YEAR(${field}) = YEAR(NOW()) AND MONTH(${field}) = MONTH(NOW())`;
-            break;
-        }
-        case 'last_month': {
-            // filter = `DATE(${field}) >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND DATE(${field}) <= CURDATE()`;
-            filter = `MONTH(${field}) = MONTH(DATE_ADD(NOW(), INTERVAL -1 MONTH)) AND YEAR(${field}) = YEAR(DATE_ADD(NOW(), INTERVAL -1 MONTH))`;
-            break;
-        }
-        case 'last_7days': {
-            filter = `DATE(${field}) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND DATE(${field}) <= CURDATE()`;
-            break;
-        }
-        case 'yesterday': {
-            filter = `DATE(${field}) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`;
-            break;
-        }
-        case 'tomorrow': {
-            filter = `DATE(${field}) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)`;
-            break;
-        }
-        default: {
-            filter = '';
-        }
-    }
+  switch (type) {
+      case 'custom': {
+          where[field] = {
+              [Op.between]: [new Date(from), new Date(to)]
+          };
+          break;
+      }
+      case 'today': {
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          where[field] = {
+              [Op.gte]: today,
+              [Op.lt]: tomorrow
+          };
+          break;
+      }
+      case 'this_month': {
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: startOfMonth,
+              [Op.lte]: endOfMonth
+          };
+          break;
+      }
+      case 'last_month': {
+          const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: startOfLastMonth,
+              [Op.lte]: endOfLastMonth
+          };
+          break;
+      }
+      case 'last_7days': {
+          const sevenDaysAgo = new Date(today);
+          sevenDaysAgo.setDate(today.getDate() - 7);
+          where[field] = {
+              [Op.gte]: sevenDaysAgo,
+              [Op.lte]: today
+          };
+          break;
+      }
+      case 'yesterday': {
+          const yesterday = new Date(today);
+          yesterday.setDate(today.getDate() - 1);
+          const endOfYesterday = new Date(yesterday);
+          endOfYesterday.setHours(23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: yesterday,
+              [Op.lt]: endOfYesterday
+          };
+          break;
+      }
+      case 'tomorrow': {
+          const tomorrow = new Date(today);
+          tomorrow.setDate(today.getDate() + 1);
+          const endOfTomorrow = new Date(tomorrow);
+          endOfTomorrow.setHours(23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: tomorrow,
+              [Op.lt]: endOfTomorrow
+          };
+          break;
+      }
+      default: {
+          // No specific date filter
+      }
+  }
 
-    return { params, filter };
+  return { where };
 }

@@ -10,6 +10,8 @@ exports.CONFIG = {
     PASSWORD_SALT: parseInt(process.env.PASSWORD_SALT) || 10,
     STRIPE_SECRET: process.env.STRIPE_SECRET,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    PAYSTACK_PUBLIC_KEY: process.env.PAYSTACK_PUBLIC_KEY,
+    PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
     SMTP_EMAIL: process.env.SMTP_EMAIL,

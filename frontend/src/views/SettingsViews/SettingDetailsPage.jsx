@@ -6,7 +6,7 @@ import { saveStoreSettings, useStoreSettings,uploadStoreImage , deleteStoreImage
 import {toast} from "react-hot-toast"
 import { mutate } from "swr";
 import Popover from "../../components/Popover";
-import { IconExternalLink, IconQrcode, IconTrash, IconUpload } from "@tabler/icons-react";
+import { IconExternalLink, IconQrcode, IconTrash, IconUpload, IconCompass } from "@tabler/icons-react";
 import { iconStroke } from "../../config/config";
 import QRCode from "qrcode";
 import { getQRMenuLink } from "../../helpers/QRMenuHelper";
@@ -152,9 +152,17 @@ export default function SettingDetailsPage() {
 
   return (
     <Page className="px-8 py-6">
-      <h3 className="text-3xl font-light">{t('settings.store_details')}</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-3xl font-light">{t('settings.store_details')}</h3>
+        <button
+          onClick={() => document.getElementById('modal-staff-tour')?.showModal()}
+          className="btn btn-sm rounded-xl border transition-all bg-restro-green-light hover:bg-restro-button-hover text-restro-green flex items-center gap-1.5 border-restro-border-green"
+        >
+          <IconCompass size={18} stroke={iconStroke} /> {t('tour.start_tour', 'Staff Tour')}
+        </button>
+      </div>
 
-      <div className="mt-8 text-sm text-gray-500">
+      <div id="tour-store-details" className="mt-8 text-sm text-gray-500">
         {/* Store Image Upload Section */}
         <div className="mb-6">
           <label htmlFor="storeImage" className="block mb-1 font-medium">
@@ -284,8 +292,9 @@ export default function SettingDetailsPage() {
           </select>
         </div>
 
-        <div className="w-full lg:min-w-96 flex items-center justify-between mt-4">
-          <label htmlFor="qrmenu" className="flex items-center gap-2">
+        <div id="tour-qr-settings" className="p-4 my-4 rounded-2xl border border-restro-border-green bg-restro-gray/40">
+          <div className="w-full lg:min-w-96 flex items-center justify-between">
+            <label htmlFor="qrmenu" className="flex items-center gap-2 font-medium">
             {t('settings.enable_qr_menu')}
             <Popover text={t('settings.qr_menu_tooltip')} />
           </label>
@@ -367,6 +376,7 @@ export default function SettingDetailsPage() {
             <div className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full  after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-100 after:border-restro-bg-gray after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-restro-checkbox peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-restro-ring-light peer-checked:bg-restro-green peer-checked:after:border-restro-border-green`}></div>
           </label>
           {/* switch */}
+        </div>
         </div>
         
         <div className="mt-8 text-sm text-gray-500">

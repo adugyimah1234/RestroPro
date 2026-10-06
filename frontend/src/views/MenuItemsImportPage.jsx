@@ -23,8 +23,9 @@ export default function MenuItemsImportPage() {
     "description",
     "price",
     "net_price",
-    "tax_id",
-    "category_id"
+    "category",
+    "category_id",
+    "tax_id"
   ];
 
   const btnDownloadTemplate = async () => {
@@ -34,8 +35,9 @@ export default function MenuItemsImportPage() {
   
       // Define example data for the template
       const data = [
-        { title: 'Burger Classic', description: 'Beef patty, lettuce, tomato, cheese', price: 12.50, net_price: 10.00, tax_id: 1, category_id: 1 },
-        { title: 'Pizza Margherita', description: 'Tomato, mozzarella, basil', price: 15.00, net_price: 12.50, tax_id: 1, category_id: 2 },
+        { title: 'Burger Classic', description: 'Beef patty, lettuce, tomato, cheese', price: 12.50, net_price: 10.00, category: 'Burgers', category_id: 1, tax_id: 1 },
+        { title: 'Pizza Margherita', description: 'Tomato, mozzarella, basil', price: 15.00, net_price: 12.50, category: 'Pizzas', category_id: 2, tax_id: 1 },
+        { title: 'Chocolate Lava Cake', description: 'Warm chocolate cake with a molten center', price: 7.00, net_price: 6.00, category: 'Desserts', category_id: 3, tax_id: 2 },
       ];
   
       // Set options for the Parser
@@ -48,7 +50,7 @@ export default function MenuItemsImportPage() {
       const csvData = parser.parse(data);
   
       // Create a blob from the CSV data and download it
-      const blob = new Blob([csvData], { type: "application/csv" });
+      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
       saveAs(blob, "menu-items-upload-template.csv");
     } catch (error) {
       console.log(error);
@@ -69,21 +71,23 @@ export default function MenuItemsImportPage() {
 
     Papa.parse(file, {
       header: true, // Assuming the first row is headers
-      skipEmptyLines: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (header) => header.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[\s\-]+/g, '_'),
       complete: (results) => {
         const parsedData = results.data;
         const errors = results.errors;
 
-        if (errors.length > 0) {
+        if (errors.length > 0 && parsedData.length === 0) {
           console.error("PapaParse errors:", errors);
           toast.error(t("menu_items_import.parsing_error"));
           setMenuItems([]);
           return;
         }
 
-        // Validate headers
+        // Validate headers - title and price are required
+        const requiredHeaders = ["title", "price"];
         const uploadedHeaders = Object.keys(parsedData[0] || {});
-        const missingHeaders = menuItemTableColumns.filter(col => !uploadedHeaders.includes(col));
+        const missingHeaders = requiredHeaders.filter(col => !uploadedHeaders.includes(col));
         
         if (missingHeaders.length > 0) {
             toast.error(t("menu_items_import.column_mismatch", { missing: missingHeaders.join(', ') }));

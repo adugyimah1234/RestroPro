@@ -1,192 +1,238 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { Reservation, Customer, StoreTable, sequelize, Op } = require("../models");
 
 exports.addReservationDB = async (customerId, date, tableId, status, notes, peopleCount, uniqueCode, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        conn.config.dateStrings = true;
-        const sql = `
-        INSERT INTO reservations
-        (customer_id, date, table_id, status, notes, people_count, unique_code, tenant_id)
-        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?);
-        `;
-
-        const utcDateTime = new Date(date).toISOString().slice(0, 19).replace("T", " ");
-        const [result] = await conn.query(sql, [customerId, utcDateTime, tableId, status, notes, peopleCount, uniqueCode, tenantId]);
-
-        return result.insertId;
+        const reservation = await Reservation.create({
+            customer_id: customerId,
+            date: date,
+            table_id: tableId,
+            status: status,
+            notes: notes,
+            people_count: peopleCount,
+            unique_code: uniqueCode,
+            tenant_id: tenantId,
+        });
+        return reservation.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.updateReservationDB = async (reservationId, date, tableId, status, notes, peopleCount, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        conn.config.dateStrings = true;
-        const sql = `
-        UPDATE reservations
-        SET
-        date = ?, table_id = ?, status = ?, notes = ?, people_count = ?, updated_at = NOW()
-        WHERE id = ? AND tenant_id = ?;
-        `;
-        const utcDateTime = new Date(date).toISOString().slice(0, 19).replace("T", " ");
-        await conn.query(sql, [utcDateTime, tableId, status, notes, peopleCount, reservationId, tenantId]);
-
+        await Reservation.update(
+            {
+                date: date,
+                table_id: tableId,
+                status: status,
+                notes: notes,
+                people_count: peopleCount,
+                updated_at: new Date(),
+            },
+            {
+                where: { id: reservationId, tenant_id: tenantId }
+            }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.cancelReservationDB = async (reservationId, status, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        UPDATE reservations
-        SET
-        status = ?
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [status, reservationId, tenantId]);
-
+        await Reservation.update(
+            { status: status },
+            { where: { id: reservationId, tenant_id: tenantId } }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.deleteReservationDB = async (reservationId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-
-        const sql = `
-        DELETE FROM reservations
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [reservationId, tenantId]);
-
+        await Reservation.destroy({
+            where: { id: reservationId, tenant_id: tenantId }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.searchReservationsDB = async (search, tenant_id) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const reservations = await Reservation.findAll({
+            where: {
+                tenant_id: tenant_id,
+                [Op.or]: [
+                    { id: search },
+                    { customer_id: search },
+                    { unique_code: search }
+                ]
+            },
+            include: [
+                {
+                    model: Customer,
+                    as: 'Customer', // Alias for Customer model
+                    attributes: ['name'],
+                    where: { tenant_id: tenant_id }, // Ensure customer belongs to the same tenant
+                    required: true // INNER JOIN
+                },
+                {
+                    model: StoreTable,
+                    as: 'StoreTable', // Alias for StoreTable model
+                    attributes: ['table_title'],
+                    required: false // LEFT JOIN
+                }
+            ],
+            attributes: [
+                'id',
+                'customer_id',
+                [sequelize.col('Customer.name'), 'customer_name'], // Access aliased customer name
+                'date',
+                'table_id',
+                [sequelize.col('StoreTable.table_title'), 'table_title'], // Access aliased table title
+                'status',
+                'notes',
+                'people_count',
+                'unique_code',
+                'created_at',
+                'updated_at'
+            ],
+            order: [['created_at', 'DESC']],
+            limit: 20,
+        });
 
-        const sql = `
-        SELECT r.id, customer_id, c.name as customer_name, r.date, table_id, st.table_title, status, notes, people_count, unique_code, r.created_at, r.updated_at
-        FROM reservations r
-        INNER JOIN customers c ON r.customer_id = c.phone AND r.tenant_id = c.tenant_id
-        LEFT JOIN store_tables st
-        ON r.table_id = st.id
-        WHERE r.tenant_id = ? AND (r.id = ? OR customer_id = ? OR unique_code = ?)
-        ORDER BY r.created_at DESC
-        LIMIT 20;
-        `;
-        conn.config.dateStrings = true;
-        const [results] = await conn.query(sql, [tenant_id, search, search, search]);
-
-        return results;
+        return reservations;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 exports.getReservationsDB = async (type, from, to, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
+        const { where } = getFilterConditionForReservationSearch(type, from, to, tenantId);
 
-        const {filter, params} = getFilterConditionForReservationSearch(type, from, to, tenantId);
+        const reservations = await Reservation.findAll({
+            where: where,
+            include: [
+                {
+                    model: Customer,
+                    as: 'Customer',
+                    attributes: ['name'],
+                    where: { tenant_id: tenantId },
+                    required: true
+                },
+                {
+                    model: StoreTable,
+                    as: 'StoreTable',
+                    attributes: ['table_title'],
+                    required: false
+                }
+            ],
+            attributes: [
+                'id',
+                'customer_id',
+                [sequelize.col('Customer.name'), 'customer_name'],
+                'date',
+                'table_id',
+                [sequelize.col('StoreTable.table_title'), 'table_title'],
+                'status',
+                'notes',
+                'people_count',
+                'unique_code',
+                'created_at',
+                'updated_at'
+            ],
+            order: [['created_at', 'DESC']]
+        });
 
-        const sql = `
-        SELECT r.id, customer_id, c.name as customer_name, r.date, 
-        table_id, st.table_title, status, notes, people_count, unique_code, r.created_at, r.updated_at
-        FROM reservations r
-        INNER JOIN customers c ON r.customer_id = c.phone AND r.tenant_id = c.tenant_id
-        LEFT JOIN store_tables st
-        ON r.table_id = st.id
-        WHERE ${filter}
-        `;
-
-        conn.config.dateStrings=true;
-
-        const [results] = await conn.query(sql, params);
-
-        return results;
+        return reservations;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-      }
+    }
 };
 
 const getFilterConditionForReservationSearch = (type, from, to, tenantId) => {
-    const params = [];
-    let filter = '';
+    let where = { tenant_id: tenantId };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     switch (type) {
         case 'custom': {
-            params.push(from, to, tenantId);
-            filter = `(DATE(date) >= ? AND DATE(date) <= ?) AND r.tenant_id = ?`;
+            where.date = {
+                [Op.between]: [new Date(from), new Date(to)]
+            };
             break;
         }
         case 'today': {
-            params.push(tenantId);
-            filter = `DATE(date) = CURDATE() AND r.tenant_id = ?`;
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            where.date = {
+                [Op.gte]: today,
+                [Op.lt]: tomorrow
+            };
             break;
         }
         case 'this_month': {
-            params.push(tenantId);
-            filter = `YEAR(date) = YEAR(NOW()) AND MONTH(date) = MONTH(NOW()) AND r.tenant_id = ?`;
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+            where.date = {
+                [Op.gte]: startOfMonth,
+                [Op.lte]: endOfMonth
+            };
             break;
         }
         case 'last_month': {
-            params.push(tenantId);
-            filter = `DATE(date) >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND DATE(date) <= CURDATE() AND r.tenant_id = ?`;
+            const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+            where.date = {
+                [Op.gte]: startOfLastMonth,
+                [Op.lte]: endOfLastMonth
+            };
             break;
         }
         case 'last_7days': {
-            params.push(tenantId);
-            filter = `DATE(date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND DATE(date) <= CURDATE() AND r.tenant_id = ?`;
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 7);
+            where.date = {
+                [Op.gte]: sevenDaysAgo,
+                [Op.lte]: today
+            };
             break;
         }
         case 'yesterday': {
-            params.push(tenantId);
-            filter = `DATE(date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND r.tenant_id = ?`;
+            const yesterday = new Date(today);
+            yesterday.setDate(today.getDate() - 1);
+            const endOfYesterday = new Date(yesterday);
+            endOfYesterday.setHours(23, 59, 59, 999);
+            where.date = {
+                [Op.gte]: yesterday,
+                [Op.lt]: endOfYesterday
+            };
             break;
         }
         case 'tomorrow': {
-            params.push(tenantId);
-            filter = `DATE(date) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND r.tenant_id = ?`;
+            const tomorrow = new Date(today);
+            tomorrow.setDate(today.getDate() + 1);
+            const endOfTomorrow = new Date(tomorrow);
+            endOfTomorrow.setHours(23, 59, 59, 999);
+            where.date = {
+                [Op.gte]: tomorrow,
+                [Op.lt]: endOfTomorrow
+            };
             break;
-        }
-        default: {
-            params.push(tenantId);
-            filter = 'r.tenant_id = ?';
         }
     }
 
-    return { params, filter };
+    return { where };
 }

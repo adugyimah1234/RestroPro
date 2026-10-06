@@ -59,7 +59,7 @@ const POSMenuItemCompactView = ({ menuItems, selectedCategory, categories, searc
 
           return (
             <div
-             className='flex flex-col gap-2 h-44 hover:cursor-pointer overflow-hidden border rounded-2xl border-restro-border-green' key={i}
+             className='flex flex-col justify-between gap-1 min-h-[12.5rem] hover:cursor-pointer overflow-hidden border rounded-2xl border-restro-border-green bg-background transition-shadow hover:shadow-md' key={i}
              onClick={() => {
               if (hasVariantOrAddon) {
                 btnOpenVariantAndAddonModal(id);
@@ -69,7 +69,7 @@ const POSMenuItemCompactView = ({ menuItems, selectedCategory, categories, searc
             }}
             >
               <div>
-                <div className='flex items-center justify-center relative w-full flex-shrink-0 h-28 rounded-t-2xl text-restro-text bg-restro-gray border-restro-green-light'>
+                <div className='flex items-center justify-center relative w-full flex-shrink-0 h-24 rounded-t-2xl text-restro-text bg-restro-gray border-restro-green-light'>
                   {image ? <img src={imageURL} alt={title} className="w-full h-full absolute top-0 left-0 rounded-t-2xl object-cover" /> : <IconCarrot />}
                   {category_title && (
                     <div className="absolute top-0 left-0 text-white bg-restro-green text-xs font-semibold px-2 py-1 rounded-tl-2xl rounded-br-xl">
@@ -86,13 +86,14 @@ const POSMenuItemCompactView = ({ menuItems, selectedCategory, categories, searc
                   )}
                 </div>
               </div>
-              <div className="px-2 pb-2 flex flex-col w-full flex-grow">
+              <div className="p-2.5 flex flex-col justify-between w-full flex-grow">
                 <div className='text-left flex-grow'>
-                  <p className='line-clamp-1 text-ellipsis text-sm font-semibold '>{title}</p>
-                  {/* <p className="text-[10px] text-gray-500">{variants?.length > 0 && <span>{variants?.length} {t("pos_menu.variants")}</span>} {addons?.length > 0 && <span>{addons?.length} {t("pos_menu.addons")}</span>}</p> */}
+                  <p className='line-clamp-1 text-ellipsis text-sm font-semibold text-restro-text'>{title}</p>
                 </div>
-                <div>
-                  <p className='text-left text-restro-green font-bold text-sm mt-1'>{currency}{price}</p>
+                <div className="mt-1">
+                  <p className='text-left text-restro-green font-bold text-sm'>
+                    {currency}{price != null && !isNaN(Number(price)) ? Number(price).toFixed(2) : '0.00'}
+                  </p>
                 </div>
               </div>
             </div>

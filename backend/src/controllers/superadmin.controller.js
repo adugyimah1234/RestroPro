@@ -328,7 +328,7 @@ exports.updateTenant = async (req, res) => {
 
         const currentTenant = await getTenantDetailsByIdDB(tenantId);
 
-        if(currentTenant.username !== email){
+        if(currentTenant.username && currentTenant.username !== email){
             // check if email exists
             const isEmailExists = await checkEmailExistsSuperadminDB(email, tenantId);
 
@@ -342,7 +342,7 @@ exports.updateTenant = async (req, res) => {
 
         await updateTenantDB(tenantId, name, email, isActive, currentTenant.username);
 
-        if (currentTenant.username !== email || (isActive == 0 && currentTenant.is_active == 1)) {
+        if ((currentTenant.username && currentTenant.username !== email) || (isActive == 0 && currentTenant.is_active == 1)) {
             await logoutAllUsersOfTenantDB(tenantId);
         }
 

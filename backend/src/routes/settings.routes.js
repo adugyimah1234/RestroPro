@@ -35,6 +35,7 @@ const {
   updateCategory,
   deleteCategory,
   changeCategoryVisibilty,
+  bulkUploadCategories,
   setTenantSlug
 } = require("../controllers/settings.controller");
 
@@ -271,6 +272,14 @@ router.patch(
   isSubscriptionActive,
   authorize([SCOPES.SETTINGS]),
   changeCategoryVisibilty
+);
+router.post(
+  "/categories/bulk-upload",
+  isLoggedIn,
+  isAuthenticated,
+  isSubscriptionActive,
+  authorize([SCOPES.SETTINGS]),
+  bulkUploadCategories
 );
 
 module.exports = router;

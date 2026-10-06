@@ -1,0 +1,7 @@
+name,username,password,designation,phone,email,role,userScopes
+John Doe,john.waiter,Pass1234,Senior Waiter,+12345678901,john@restaurant.com,user,"POS,ORDERS,RESERVATIONS"
+Sarah Smith,sarah.chef,Pass1234,Head Chef,+12345678902,sarah@restaurant.com,user,"KITCHEN,KITCHEN_DISPLAY,INVENTORY"
+Michael Scott,michael.mgr,Pass1234,Restaurant Manager,+12345678903,michael@restaurant.com,user,"DASHBOARD,POS,ORDERS,RESERVATIONS,CUSTOMERS,INVOICES,INVENTORY,SETTINGS,REPORTS,FEEDBACK"
+Emily Davis,emily.cashier,Pass1234,Cashier,+12345678904,emily@restaurant.com,user,"POS,ORDERS,INVOICES,CUSTOMERS"
+Alex Johnson,alex.host,Pass1234,Host / Receptionist,+12345678905,alex@restaurant.com,user,"RESERVATIONS,VIEW_RESERVATIONS,MANAGE_RESERVATIONS,CUSTOMERS"
+David Lee,david.inventory,Pass1234,Inventory Manager,+12345678906,david@restaurant.com,user,"INVENTORY,VIEW_INVENTORY,MANAGE_INVENTORY"

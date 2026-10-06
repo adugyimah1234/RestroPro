@@ -13,7 +13,8 @@ import {
   IconLogout,
   IconUser,
   IconSun,
-  IconMoon
+  IconMoon,
+  IconCompass
 } from "@tabler/icons-react";
 
 import { signOut } from "../controllers/auth.controller";
@@ -118,6 +119,22 @@ export default function AppBarDropdown() {
                 )}
               </Menu.Item>
             ))}
+
+            {/* Staff Tour Guide */}
+            <Menu.Item>
+              {({ active }) => (
+                <button
+                  onClick={() => document.getElementById('modal-staff-tour')?.showModal()}
+                  className={clsx(
+                    itemBaseClasses,
+                    "hover:bg-restro-button-hover text-restro-green font-medium"
+                  )}
+                >
+                  <IconCompass stroke={iconStroke} />
+                  {t("tour.title", "Staff Tour Guide")}
+                </button>
+              )}
+            </Menu.Item>
 
             {/* Theme Toggle */}
             <Menu.Item>

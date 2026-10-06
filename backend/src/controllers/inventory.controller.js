@@ -6,9 +6,25 @@ const {
   deleteInventoryItemDB,
   addInventoryItemStockMovementDB,
   getInventoryLogsDB,
-  getCummulativeInventoryMovementsDB,
+  getCumulativeInventoryMovementsDB,
   getInventoryUsageVsCurrentStockDB,
   bulkAddInventoryItemsDB,
+  addVendorDB,
+  getVendorsDB,
+  getAllVendorsDB,
+  getVendorDB,
+  searchVendorDB,
+  updateVendorDB,
+  deleteVendorDB,
+  addItemToPurchaseOrdersDraftsDB,
+  addBulkItemsToPurchaseOrdersDraftsDB,
+  getPurchaseOrderDraftsDB,
+  updatePurchaseOrderDraftItemQuantityDB,
+  deletePurchaseOrderDraftItemDB,
+  createPurchaseOrderDB,
+  updatePurchaseOrderToCompleteDB,
+  getPurchaseOrdersDB,
+  getPurchaseOrderItemsDB
 } = require("../services/inventory.service");
 const papaparse = require("papaparse");
 const xlsx = require("xlsx");
@@ -16,6 +32,7 @@ const xlsx = require("xlsx");
 exports.bulkAddInventoryItems = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const username = req.user.username;
 
     if (!req.files || !req.files.csv) {
@@ -37,7 +54,7 @@ exports.bulkAddInventoryItems = async (req, res) => {
           transformHeader: header => header.toLowerCase().trim().replace(/ /g, '_'),
           complete: async (results) => {
             try {
-              const processedCount = await bulkAddInventoryItemsDB(results.data, tenantId, username);
+              const processedCount = await bulkAddInventoryItemsDB(results.data, tenantId, username, branchId);
               res.status(200).json({
                 success: true,
                 message: `${processedCount} items added successfully.`,
@@ -81,7 +98,7 @@ exports.bulkAddInventoryItems = async (req, res) => {
       });
 
       try {
-        const processedCount = await bulkAddInventoryItemsDB(dataToInsert, tenantId, username);
+        const processedCount = await bulkAddInventoryItemsDB(dataToInsert, tenantId, username, branchId);
         return res.status(200).json({
           success: true,
           message: `${processedCount} items added successfully.`,
@@ -111,6 +128,7 @@ exports.bulkAddInventoryItems = async (req, res) => {
 exports.addInventoryItem = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const username = req.user.username;
     const {
       title,
@@ -132,7 +150,8 @@ exports.addInventoryItem = async (req, res) => {
       unit,
       min_quantity_threshold,
       tenantId,
-      username
+      username,
+      branchId
     );
 
     return res.status(200).json({
@@ -153,8 +172,9 @@ exports.getInventoryItems = async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const status = req.query.status || null;
-    const {items, statusCounts} = await getInventoryItemsDB(status, tenantId);
+    const {items, statusCounts} = await getInventoryItemsDB(status, tenantId, branchId);
     return res.status(200).json({items, statusCounts});
   } catch (error) {
     console.error(error);
@@ -168,6 +188,7 @@ exports.getInventoryItems = async (req, res) => {
 exports.updateInventoryItem = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const itemId = req.params.id;
     const {
       title,
@@ -180,7 +201,8 @@ exports.updateInventoryItem = async (req, res) => {
       title,
       unit,
       min_quantity_threshold,
-      tenantId
+      tenantId,
+      branchId
     );
 
     return res.status(200).json({
@@ -199,6 +221,7 @@ exports.updateInventoryItem = async (req, res) => {
 exports.addInventoryItemStockMovement = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const username = req.user.username;
     const itemId = req.params.id;
     const { movementType, quantity, note } = req.body;
@@ -217,7 +240,7 @@ exports.addInventoryItemStockMovement = async (req, res) => {
       });
     }
 
-    await addInventoryItemStockMovementDB(req, itemId, movementType, quantity, note, tenantId, username);
+    await addInventoryItemStockMovementDB(req, itemId, movementType, quantity, note, tenantId, username, branchId);
 
     return res.status(200).json({
       success: true,
@@ -249,9 +272,10 @@ exports.addInventoryItemStockMovement = async (req, res) => {
 exports.deleteInventoryItem = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const itemId = req.params.id;
 
-    await deleteInventoryItemDB(itemId, tenantId);
+    await deleteInventoryItemDB(itemId, tenantId, branchId);
 
     return res.status(200).json({
       success: true,
@@ -269,6 +293,7 @@ exports.deleteInventoryItem = async (req, res) => {
 exports.getInventoryLogs = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
 
     const from = req.query.from || null;
     const to = req.query.to || null;
@@ -291,7 +316,7 @@ exports.getInventoryLogs = async (req, res) => {
       }
     }
 
-    const logs = await getInventoryLogsDB(movementType, type, from, to, tenantId);
+    const logs = await getInventoryLogsDB(movementType, type, from, to, tenantId, branchId);
     return res.status(200).json(logs);
   } catch (error) {
     console.error(error);
@@ -305,6 +330,7 @@ exports.getInventoryLogs = async (req, res) => {
 exports.getInventoryDashboardData = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
 
     const from = req.query.from || null;
     const to = req.query.to || null;
@@ -326,15 +352,53 @@ exports.getInventoryDashboardData = async (req, res) => {
       }
     }
 
-    const [cummulativeInventoryMovements, inventoryUsageVSCurrentStock] = await Promise.all([
-      getCummulativeInventoryMovementsDB(type, from, to, tenantId),
-      getInventoryUsageVsCurrentStockDB(type, from, to, tenantId),
+    const [cumulativeInventoryMovements, inventoryUsageVSCurrentStock] = await Promise.all([
+      getCumulativeInventoryMovementsDB(type, from, to, tenantId, branchId),
+      getInventoryUsageVsCurrentStockDB(type, from, to, tenantId, branchId),
     ]);
 
     return res.status(200).json({
-      cummulativeInventoryMovements,
+      cumulativeInventoryMovements,
       inventoryUsageVSCurrentStock,
     });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: req.__("something_went_wrong_try_later"),
+    });
+  }
+};
+
+
+exports.getInventorySummary = async (req, res) => {
+  try {
+    const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
+
+    const from = req.query.from || null;
+    const to = req.query.to || null;
+    const type = req.query.type;
+
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: req.__("please_provide_required_details"),
+      });
+    }
+
+    if (type == "custom") {
+      if (!(from && to)) {
+        return res.status(400).json({
+          success: false,
+          message: req.__("provide_from_to_dates_error"),
+        });
+      }
+    }
+
+    const inventorySummary = await getInventorySummaryDB(type, from, to, tenantId, branchId);
+
+    return res.status(200).json(inventorySummary);
   } catch (error) {
     console.error(error);
     return res.status(500).json({

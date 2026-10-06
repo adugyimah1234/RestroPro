@@ -1,179 +1,234 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { Feedback, Customer, sequelize, Op } = require("../models");
 
-exports.getOverallFeedbackSummaryDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getOverallFeedbackSummaryDB = async (tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT 
-            COUNT(CASE WHEN average_rating BETWEEN 4.5 AND 5 THEN 1 END) AS loved,
-            COUNT(CASE WHEN average_rating BETWEEN 3.5 AND 4.4 THEN 1 END) AS good,
-            COUNT(CASE WHEN average_rating BETWEEN 2.5 AND 3.4 THEN 1 END) AS average,
-            COUNT(CASE WHEN average_rating BETWEEN 1.5 AND 2.4 THEN 1 END) AS bad,
-            COUNT(CASE WHEN average_rating BETWEEN 1 AND 1.4 THEN 1 END) AS worst
-        FROM feedbacks
-        WHERE tenant_id = ?;
-        `;
-
-        const [results] = await conn.query(sql, [tenantId]);
-        return results[0];
+        const summary = await Feedback.findOne({
+            attributes: [
+                [sequelize.fn('COUNT', sequelize.literal('CASE WHEN average_rating BETWEEN 4.5 AND 5 THEN 1 END')), 'loved'],
+                [sequelize.fn('COUNT', sequelize.literal('CASE WHEN average_rating BETWEEN 3.5 AND 4.4 THEN 1 END')), 'good'],
+                [sequelize.fn('COUNT', sequelize.literal('CASE WHEN average_rating BETWEEN 2.5 AND 3.4 THEN 1 END')), 'average'],
+                [sequelize.fn('COUNT', sequelize.literal('CASE WHEN average_rating BETWEEN 1.5 AND 2.4 THEN 1 END')), 'bad'],
+                [sequelize.fn('COUNT', sequelize.literal('CASE WHEN average_rating BETWEEN 1 AND 1.4 THEN 1 END')), 'worst']
+            ],
+            where: { tenant_id: tenantId, branch_id: branchId },
+            raw: true,
+        });
+        return summary;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-      conn.release();
-  }
+    }
 }
 
-exports.getOverallFeedbackSummaryByQuestionDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getOverallFeedbackSummaryByQuestionDB = async (tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT 
-            avg(food_quality_rating) as food_quality_rating,
-            avg(service_rating) as service_rating,
-            avg(staff_behavior_rating) as staff_behavior_rating,
-            avg(ambiance_rating) as ambiance_rating,
-            avg(recommend_rating) as recommend_rating,
-            avg(average_rating) as average_rating
-        FROM feedbacks
-        WHERE tenant_id = ?;
-        `;
-
-        const [results] = await conn.query(sql, [tenantId]);
-        return results[0];
+        const summary = await Feedback.findOne({
+            attributes: [
+                [sequelize.fn('AVG', sequelize.col('food_quality_rating')), 'food_quality_rating'],
+                [sequelize.fn('AVG', sequelize.col('service_rating')), 'service_rating'],
+                [sequelize.fn('AVG', sequelize.col('staff_behavior_rating')), 'staff_behavior_rating'],
+                [sequelize.fn('AVG', sequelize.col('ambiance_rating')), 'ambiance_rating'],
+                [sequelize.fn('AVG', sequelize.col('recommend_rating')), 'recommend_rating'],
+                [sequelize.fn('AVG', sequelize.col('average_rating')), 'average_rating']
+            ],
+            where: { tenant_id: tenantId, branch_id: branchId },
+            raw: true,
+        });
+        return summary;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-      conn.release();
-  }
+    }
 }
 
-exports.getFeedbacksDB = async (type, from, to, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
+exports.getFeedbacksDB = async (type, from, to, tenantId, branchId) => {
     try {
+        const { where: filterCondition } = getFilterCondition('created_at', type, from, to);
 
-        const {filter, params} = getFilterConditionForInvoices(type, from, to, tenantId)
-
-        const sql = `
-        SELECT
-            id,
-            invoice_id,
-            DATE(date) AS date,
-            f.phone,
-            c.name,
-            average_rating,
-            food_quality_rating,
-            service_rating,
-            staff_behavior_rating,
-            ambiance_rating,
-            recommend_rating,
-            remarks
-        FROM
-            feedbacks f
-            LEFT JOIN customers c ON f.phone = c.phone
-            AND f.tenant_id = c.tenant_id
-        WHERE
-            ${filter}
-        ORDER BY
-            f.date DESC;
-        `;
-
-        const [results] = await conn.query(sql, params);
-        return results;
+        const feedbacks = await Feedback.findAll({
+            where: { tenant_id: tenantId, branch_id: branchId, ...filterCondition },
+            include: [
+                {
+                    model: Customer,
+                    as: 'Customer', // Assuming Feedback belongsTo Customer
+                    attributes: [['name', 'customer_name']],
+                    required: false // LEFT JOIN
+                }
+            ],
+            attributes: [
+                'id',
+                'invoice_id',
+                ['phone', 'phone'], // Keep phone as is
+                [sequelize.col('Customer.name'), 'customer_name'],
+                'average_rating',
+                'food_quality_rating',
+                'service_rating',
+                'staff_behavior_rating',
+                'ambiance_rating',
+                'recommend_rating',
+                'remarks',
+                'created_at'
+            ],
+            order: [['created_at', 'DESC']],
+        });
+        return feedbacks;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-      conn.release();
-  }
-};
-
-exports.searchFeedbacksDB = async (search, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-      try {  
-          const sql = `
-          SELECT
-              id,
-              invoice_id,
-              DATE(date) AS date,
-              f.phone,
-              c.name,
-              average_rating,
-              food_quality_rating,
-              service_rating,
-              staff_behavior_rating,
-              ambiance_rating,
-              recommend_rating,
-              remarks
-          FROM
-              feedbacks f
-              LEFT JOIN customers c ON f.phone = c.phone
-              AND f.tenant_id = c.tenant_id
-          WHERE
-              (f.invoice_id = ? OR f.phone LIKE ? OR c.\`name\` LIKE ?)
-              AND f.tenant_id = ?
-          ORDER BY
-              f.date DESC;
-          `;
-  
-          const [results] = await conn.query(sql, [search, search, `%${search}%`, tenantId]);
-          return results;
-      } catch (error) {
-          console.error(error);
-          throw error;
-      } finally {
-        conn.release();
     }
 };
 
-const getFilterConditionForInvoices = (type, from, to, tenantId) => {
-    const params = [];
-    let filter = '';
-
-    switch (type) {
-        case 'custom': {
-            params.push(from, to, tenantId);
-            filter = `DATE(f.date) >= ? AND DATE(f.date) <= ? AND f.tenant_id = ?`;
-            break;
-        }
-        case 'today': {
-            params.push(tenantId);
-            filter = `DATE(f.date) = CURDATE() AND f.tenant_id = ?`;
-            break;
-        }
-        case 'this_month': {
-          params.push(tenantId);
-            filter = `YEAR(f.date) = YEAR(NOW()) AND MONTH(f.date) = MONTH(NOW()) AND f.tenant_id = ?`;
-            break;
-        }
-        case 'last_month': {
-          params.push(tenantId);
-            filter = `DATE(f.date) >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND DATE(f.date) <= CURDATE() AND f.tenant_id = ?`;
-            break;
-        }
-        case 'last_7days': {
-          params.push(tenantId);
-            filter = `DATE(f.date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND DATE(f.date) <= CURDATE() AND f.tenant_id = ?`;
-            break;
-        }
-        case 'yesterday': {
-          params.push(tenantId);
-            filter = `DATE(f.date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND f.tenant_id = ?`;
-            break;
-        }
-        case 'tomorrow': {
-          params.push(tenantId);
-            filter = `DATE(f.date) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND f.tenant_id = ?`;
-            break;
-        }
-        default: {
-          params.push(tenantId);
-            filter = 'f.tenant_id = ?';
-        }
+exports.getFeedbackDB = async (id, tenantId, branchId) => {
+    try {
+        const feedback = await Feedback.findOne({
+            where: { id: id, tenant_id: tenantId, branch_id: branchId },
+            include: [
+                {
+                    model: Customer,
+                    as: 'Customer', // Assuming Feedback belongsTo Customer
+                    attributes: [['name', 'customer_name']],
+                    required: false // LEFT JOIN
+                }
+            ],
+            attributes: [
+                'id',
+                'invoice_id',
+                ['phone', 'phone'], // Keep phone as is
+                [sequelize.col('Customer.name'), 'customer_name'],
+                'average_rating',
+                'food_quality_rating',
+                'service_rating',
+                'staff_behavior_rating',
+                'ambiance_rating',
+                'recommend_rating',
+                'remarks',
+                'created_at'
+            ],
+        });
+        return feedback;
+    } catch (error) {
+        console.error(error);
+        throw error;
     }
+};
 
-    return { params, filter };
+exports.searchFeedbacksDB = async (search, tenantId, branchId) => {
+    try {
+        const feedbacks = await Feedback.findAll({
+            where: {
+                tenant_id: tenantId,
+                branch_id: branchId,
+                [Op.or]: [
+                    { invoice_id: search },
+                    { phone: { [Op.like]: `${search}%` } },
+                    { '$Customer.name$': { [Op.like]: `%${search}%` } }
+                ]
+            },
+            include: [
+                {
+                    model: Customer,
+                    as: 'Customer',
+                    attributes: [],
+                    required: false // LEFT JOIN
+                }
+            ],
+            attributes: [
+                'id',
+                'invoice_id',
+                ['created_at', 'date'], // Assuming 'date' in original query refers to created_at
+                ['phone', 'phone'],
+                [sequelize.col('Customer.name'), 'name'],
+                'average_rating',
+                'food_quality_rating',
+                'service_rating',
+                'staff_behavior_rating',
+                'ambiance_rating',
+                'recommend_rating',
+                'remarks'
+            ],
+            order: [['created_at', 'DESC']],
+        });
+        return feedbacks;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+const getFilterCondition = (field, type, from, to) => {
+  let where = {};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  switch (type) {
+      case 'custom': {
+          where[field] = {
+              [Op.between]: [new Date(from), new Date(to)]
+          };
+          break;
+      }
+      case 'today': {
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          where[field] = {
+              [Op.gte]: today,
+              [Op.lt]: tomorrow
+          };
+          break;
+      }
+      case 'this_month': {
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: startOfMonth,
+              [Op.lte]: endOfMonth
+          };
+          break;
+      }
+      case 'last_month': {
+          const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: startOfLastMonth,
+              [Op.lte]: endOfLastMonth
+          };
+          break;
+      }
+      case 'last_7days': {
+          const sevenDaysAgo = new Date(today);
+          sevenDaysAgo.setDate(today.getDate() - 7);
+          where[field] = {
+              [Op.gte]: sevenDaysAgo,
+              [Op.lte]: today
+          };
+          break;
+      }
+      case 'yesterday': {
+          const yesterday = new Date(today);
+          yesterday.setDate(today.getDate() - 1);
+          const endOfYesterday = new Date(yesterday);
+          endOfYesterday.setHours(23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: yesterday,
+              [Op.lt]: endOfYesterday
+          };
+          break;
+      }
+      case 'tomorrow': {
+          const tomorrow = new Date(today);
+          tomorrow.setDate(today.getDate() + 1);
+          const endOfTomorrow = new Date(tomorrow);
+          endOfTomorrow.setHours(23, 59, 59, 999);
+          where[field] = {
+              [Op.gte]: tomorrow,
+              [Op.lt]: endOfTomorrow
+          };
+          break;
+      }
+      default: {
+          // No specific date filter
+      }
+  }
+
+  return { where };
 }

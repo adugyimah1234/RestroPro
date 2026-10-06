@@ -286,6 +286,19 @@ export async function changeCategoryVisibilty(id, isEnabled) {
   }
 };
 
+export async function bulkUploadCategories(formData) {
+  try {
+    const response = await ApiClient.post("/settings/categories/bulk-upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export function useDevices() {
   const APIURL = `/auth/devices`;
   const { data, error, isLoading } = useSWR(APIURL, fetcher);

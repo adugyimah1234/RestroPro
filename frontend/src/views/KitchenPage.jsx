@@ -172,7 +172,7 @@ export default function KitchenPage() {
 
   return (
     <Page>
-      <div className="flex items-center gap-6">
+      <div id="tour-kitchen-header" className="flex items-center gap-6">
         <h3 className="text-3xl font-light">{t('kitchen.title')}</h3>
         <button
           onClick={btnRefresh}
@@ -200,7 +200,7 @@ export default function KitchenPage() {
       {
         filteredOrders?.filter(order => {
           return !order.items.every(item => item.status === 'completed' || item.status === 'delivered');
-        })?.length > 0 && <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+        })?.length > 0 && <div id="tour-kitchen-orders" className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
 
         {
           kitchenOrders.filter(order => {

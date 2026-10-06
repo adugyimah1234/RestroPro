@@ -1,7 +1,8 @@
 const { nanoid } = require("nanoid");
-const { getStoreSettingDB, setStoreSettingDB, uploadStoreImageDB, deleteStoreImageDB, getPrintSettingDB, setPrintSettingDB, getTaxesDB, addTaxDB, updateTaxDB, deleteTaxDB, getTaxDB, addPaymentTypeDB, getPaymentTypesDB, updatePaymentTypeDB, deletePaymentTypeDB, togglePaymentTypeDB, addStoreTableDB, getStoreTablesDB, updateStoreTableDB, deleteStoreTableDB, addCategoryDB, getCategoriesDB, updateCategoryDB, deleteCategoryDB, getQRMenuCodeDB, updateQRMenuCodeDB, changeCategoryVisibiltyDB, updateServiceChargeDB, getServiceChargeDB, setTenantSlugDB } = require("../services/settings.service");
+const { getStoreSettingDB, setStoreSettingDB, uploadStoreImageDB, deleteStoreImageDB, getPrintSettingDB, setPrintSettingDB, getTaxesDB, addTaxDB, updateTaxDB, deleteTaxDB, getTaxDB, addPaymentTypeDB, getPaymentTypesDB, updatePaymentTypeDB, deletePaymentTypeDB, togglePaymentTypeDB, addStoreTableDB, getStoreTablesDB, updateStoreTableDB, deleteStoreTableDB, addCategoryDB, getCategoriesDB, updateCategoryDB, deleteCategoryDB, getQRMenuCodeDB, updateQRMenuCodeDB, changeCategoryVisibiltyDB, bulkAddCategoriesDB, updateServiceChargeDB, getServiceChargeDB, setTenantSlugDB } = require("../services/settings.service");
 const path = require("path");
 const fs = require("fs");
+const Papa = require("papaparse");
 
 // ... existing code ...
 
@@ -692,6 +693,94 @@ exports.changeCategoryVisibilty = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: req.__("category_visibility_updated"),
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: req.__("something_went_wrong_try_later")
+        });
+    }
+};
+
+exports.bulkUploadCategories = async (req, res) => {
+    try {
+        const tenantId = req.user.tenant_id;
+
+        if (!req.files || Object.keys(req.files).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("no_files_uploaded")
+            });
+        }
+
+        const file = req.files.file || req.files.csv;
+
+        const isCsvFile = (file.name && file.name.toLowerCase().endsWith('.csv')) ||
+            ['text/csv', 'text/plain', 'application/vnd.ms-excel', 'text/comma-separated-values', 'application/csv'].includes(file.mimetype);
+
+        if (!isCsvFile) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("only_csv_files_allowed")
+            });
+        }
+
+        let csvString = "";
+        if (file.tempFilePath && fs.existsSync(file.tempFilePath)) {
+            csvString = fs.readFileSync(file.tempFilePath, 'utf8');
+        } else if (file.data && file.data.length > 0) {
+            csvString = file.data.toString('utf8');
+        }
+
+        csvString = csvString.replace(/^\uFEFF/, '');
+
+        if (file.tempFilePath && fs.existsSync(file.tempFilePath)) {
+            try {
+                fs.unlinkSync(file.tempFilePath);
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        if (!csvString.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("no_valid_categories_found_in_file")
+            });
+        }
+
+        const results = await new Promise((resolve, reject) => {
+            Papa.parse(csvString, {
+                header: true,
+                skipEmptyLines: 'greedy',
+                transformHeader: (h) => h.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[\s\-]+/g, '_'),
+                complete: (results) => resolve(results),
+                error: (error) => reject(error)
+            });
+        });
+
+        const categoryTitles = [];
+        for (const row of results.data) {
+            const cleanTitle = (row.title || row.category || row.category_title || row.category_name || row.name || "").toString().trim();
+            if (cleanTitle) {
+                categoryTitles.push(cleanTitle);
+            }
+        }
+
+        if (categoryTitles.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: req.__("no_valid_categories_found_in_file")
+            });
+        }
+
+        const insertedCount = await bulkAddCategoriesDB(categoryTitles, tenantId);
+
+        return res.status(200).json({
+            success: true,
+            message: req.__("categories_bulk_uploaded_successfully", { count: insertedCount }),
+            insertedCount
         });
     } catch (error) {
         console.error(error);

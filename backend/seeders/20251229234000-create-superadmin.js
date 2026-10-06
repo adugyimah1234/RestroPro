@@ -4,19 +4,25 @@ const bcrypt = require('bcrypt');
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    const hashedPassword = await bcrypt.hash('SuperAdmin@123', 10); // Use a strong, unique password for production
+    const email = process.env.SUPERADMIN_EMAIL || 'admin@restropro.com';
+    const rawPassword = process.env.SUPERADMIN_PASSWORD || 'RestroPro#SuperAdmin$2025!';
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
-    await queryInterface.bulkInsert('Users', [{
-      username: 'superadmin',
-      email: 'superadmin@example.com',
+    // Delete non-production / test superadmin account if present
+    await queryInterface.bulkDelete('superadmins', { email: 'superadmin@example.com' }, {});
+
+    // Delete existing account if re-seeding to ensure updated password
+    await queryInterface.bulkDelete('superadmins', { email }, {});
+
+    await queryInterface.bulkInsert('superadmins', [{
+      email,
       password: hashedPassword,
-      role: 'superadmin', // Set the role to 'superadmin'
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }], {});
+      name: 'System Super Admin'
+    }], { ignoreDuplicates: true });
   },
 
   async down (queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('Users', { email: 'superadmin@example.com' }, {});
+    const email = process.env.SUPERADMIN_EMAIL || 'admin@restropro.com';
+    await queryInterface.bulkDelete('superadmins', { email }, {});
   }
 };

@@ -10,6 +10,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { addMenuItem, changeMenuItemVisibility, deleteMenuItem, useMenuItems } from "../../controllers/menu_item.controller";
 import { useTheme } from "../../contexts/ThemeContext";
 import clsx from "clsx";
+import Popover from "../../components/Popover";
 export default function MenuItemsSettingsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -41,41 +42,42 @@ export default function MenuItemsSettingsPage() {
   }
 
   async function btnAdd() {
-    const title = titleRef.current.value;
-    const description = descriptionRef.current.value || null;
-    const price = priceRef.current.value;
-    const netPrice = netPriceRef.current.value || null;
-    const categoryId = categoryIdRef.current.value || null;
-    const taxId = taxIdRef.current.value || null;
+    const title = titleRef.current?.value?.trim();
+    const description = descriptionRef.current?.value?.trim() || null;
+    const price = priceRef.current?.value;
+    const netPrice = netPriceRef.current?.value || null;
+    const categoryId = categoryIdRef.current?.value || null;
+    const taxId = taxIdRef.current?.value || null;
 
     if(!title) {
-      toast.error(t,('menu_items.please_enter_title'));
+      toast.error(t('menu_items.please_enter_title'));
       return;
     }
 
-    if(price < 0) {
+    if(price === "" || price === undefined || price === null || isNaN(Number(price)) || Number(price) < 0) {
       toast.error(t('menu_items.please_provide_valid_price'));
       return;
     }
 
     try {
       toast.loading(t('menu_items.please_wait'));
-      const res = await addMenuItem(title, description, price, netPrice, categoryId, taxId);
+      const res = await addMenuItem(title, description, Number(price), netPrice ? Number(netPrice) : null, categoryId, taxId);
 
       if(res.status == 200) {
-        titleRef.current.value = null;
-        descriptionRef.current.value = null;
-        priceRef.current.value = null;
-        netPriceRef.current.value = null;
-        categoryIdRef.current.value = "";
-        taxIdRef.current.value = "";
+        if (titleRef.current) titleRef.current.value = "";
+        if (descriptionRef.current) descriptionRef.current.value = "";
+        if (priceRef.current) priceRef.current.value = "";
+        if (netPriceRef.current) netPriceRef.current.value = "";
+        if (categoryIdRef.current) categoryIdRef.current.value = "";
+        if (taxIdRef.current) taxIdRef.current.value = "";
 
+        document.getElementById("modal-add")?.close();
         await mutate(APIURL);
         toast.dismiss();
         toast.success(res.data.message);
       }
     } catch (error) {
-      const message = error.response.data.message || t('menu_items.something_went_wrong');
+      const message = error?.response?.data?.message || t('menu_items.something_went_wrong');
       console.error(error);
       toast.dismiss();
       toast.error(message);
@@ -257,12 +259,15 @@ export default function MenuItemsSettingsPage() {
 
           <div className="flex gap-4 w-full my-4">
             <div className="flex-1">
-              <label
-                htmlFor="price"
-                className="mb-1 block text-gray-500 text-sm"
-              >
-                {t('menu_items.item_price')}
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label
+                  htmlFor="price"
+                  className="block text-gray-500 text-sm"
+                >
+                  {t('menu_items.item_price')}
+                </label>
+                <Popover text={t('menu_items.item_price_tooltip')} />
+              </div>
               <input
                 ref={priceRef}
                 type="number"
@@ -272,12 +277,15 @@ export default function MenuItemsSettingsPage() {
               />
             </div>
             <div className="flex-1">
-              <label
-                htmlFor="nprice"
-                className="mb-1 block text-gray-500 text-sm"
-              >
-                {t('menu_items.item_net_price')}
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label
+                  htmlFor="nprice"
+                  className="block text-gray-500 text-sm"
+                >
+                  {t('menu_items.item_net_price')}
+                </label>
+                <Popover text={t('menu_items.item_net_price_tooltip')} />
+              </div>
               <input
                 ref={netPriceRef}
                 type="number"
@@ -334,20 +342,22 @@ export default function MenuItemsSettingsPage() {
           </div>
 
           <div className="modal-action">
-            <form method="dialog">
-              {/* if there is a button in form, it will close the modal */}
-              <button className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 flex-1 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>
-                {t('menu_items.close')}
-              </button>
-              <button
-                onClick={() => {
-                  btnAdd();
-                }}
-                className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 text-white ml-3 border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'
-              >
-                {t('menu_items.save')}
-              </button>
-            </form>
+            <button
+              type="button"
+              onClick={() => document.getElementById("modal-add")?.close()}
+              className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 flex-1 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'
+            >
+              {t('menu_items.close')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                btnAdd();
+              }}
+              className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 text-white ml-3 border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'
+            >
+              {t('menu_items.save')}
+            </button>
           </div>
         </div>
       </dialog>

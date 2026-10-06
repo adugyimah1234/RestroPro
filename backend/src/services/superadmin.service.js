@@ -1,30 +1,21 @@
 const bcrypt = require("bcrypt");
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
-const {doUserExistDB} = require('../services/user.service');
+const { Op } = require('sequelize');
 const { CONFIG } = require("../config");
+const { Superadmin, User, Tenant, Order, Invoice, StoreDetails, ExchangeRate, SubscriptionHistory, MenuItem, OrderItem, Customer, sequelize } = require("../models");
+
 
 exports.signInDB = async (username, password) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-        email, password, name
-        FROM superadmins
-        WHERE email = ?
-        LIMIT 1;
-        `;
+        const user = await Superadmin.findOne({
+            where: { email: username },
+        });
 
-        const [result] = await conn.query(sql, [username]);
-        const user = result[0];
-
-        if(!user) {
+        if (!user) {
             return null;
         }
 
         const passwordMatch = await bcrypt.compare(password, user.password);
-        if(passwordMatch) {
+        if (passwordMatch) {
             return user;
         } else {
             return null;
@@ -33,772 +24,720 @@ exports.signInDB = async (username, password) => {
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
+
 exports.getAdminUserDB = async (username) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-        email, password, name
-        FROM superadmins
-        WHERE email = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [username]);
-        const user = result[0];
+        if (!username) return null;
+        const user = await Superadmin.findOne({
+            where: { email: username },
+        });
         return user;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 
 exports.getOrdersProcessedTodayDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            COUNT(*) AS todays_orders
-        FROM
-            orders
-        WHERE
-            DATE(\`date\`) = CURDATE()
-        `;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Start of today
 
-        const [result] = await conn.query(sql, []);
-
-        return result[0]?.todays_orders || 0;
+        const orders = await Order.count({
+            where: {
+                date: {
+                    [Op.gte]: today
+                }
+            }
+        });
+        return orders;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getSalesVolumeTodayDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            IFNULL(SUM(i.total * er.rate_to_usd),0) AS sales_volume_today
-        FROM
-            invoices i
-            LEFT JOIN store_details sd ON i.tenant_id = sd.tenant_id
-            LEFT JOIN exchange_rates er ON sd.currency = er.currency_code
-        WHERE
-            date(i.created_at) = CURDATE()
-        `;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Start of today
 
-        const [result] = await conn.query(sql, []);
+        const result = await Invoice.findOne({
+            attributes: [
+                [sequelize.fn('IFNULL', sequelize.fn('SUM', sequelize.literal('Invoice.total * `Tenant->StoreDetail->ExchangeRate`.rate_to_usd')), 0), 'sales_volume_today']
+            ],
+            where: {
+                created_at: {
+                    [Op.gte]: today
+                }
+            },
+            include: [{
+                model: Tenant,
+                attributes: [],
+                include: [{
+                    model: StoreDetails,
+                    as: 'StoreDetail',
+                    attributes: [],
+                    include: [{
+                        model: ExchangeRate,
+                        attributes: []
+                    }]
+                }]
+            }],
+            raw: true,
+        });
 
-        return result[0]?.sales_volume_today || 0;
+        return result ? result.sales_volume_today : 0;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getMRRValueDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            count(*) AS active_tenants
-        FROM
-            tenants
-        WHERE
-            is_active = 1
-        `;
-
-        const [result] = await conn.query(sql, []);
-
-        return result[0]?.active_tenants || 0;
+        const activeTenants = await Tenant.count({
+            where: {
+                is_active: true
+            }
+        });
+        return activeTenants;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getARRValueDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            count(*) AS active_tenants
-        FROM
-            tenants
-        WHERE
-            is_active = 1
-        `;
-
-        const [result] = await conn.query(sql, []);
-
-        return result[0]?.active_tenants || 0;
+        const activeTenants = await Tenant.count({
+            where: {
+                is_active: true
+            }
+        });
+        return activeTenants;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getActiveTenantsDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            count(*) AS active_tenants
-        FROM
-            tenants
-        WHERE
-            is_active = 1
-        `;
-
-        const [result] = await conn.query(sql, []);
-        return result[0]?.active_tenants || 0;
+        const activeTenants = await Tenant.count({
+            where: {
+                is_active: true
+            }
+        });
+        return activeTenants;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 
 exports.getInActiveTenantsDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            count(*) AS inactive_tenants
-        FROM
-            tenants
-        WHERE
-            is_active = 0
-        `;
-
-        const [result] = await conn.query(sql, []);
-
-        return result[0]?.inactive_tenants || 0;
+        const inactiveTenants = await Tenant.count({
+            where: {
+                is_active: false
+            }
+        });
+        return inactiveTenants;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 exports.getAllTenantsDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            count(*) AS all_tenants
-        FROM
-            tenants
-        `;
-
-        const [result] = await conn.query(sql, []);
-
-        return result[0]?.all_tenants || 0;
+        const allTenants = await Tenant.count();
+        return allTenants;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantSubscriptionHistoryDB = async(tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            id, tenant_id, created_at, starts_on, expires_on, status
-        FROM
-            subscription_history
-        WHERE
-            tenant_id = ?
-        ORDER BY created_at DESC;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result;
+        const history = await SubscriptionHistory.findAll({
+            where: { tenant_id: tenantId },
+            attributes: ['id', 'tenant_id', 'created_at', 'starts_on', 'expires_on', 'status'],
+            order: [['created_at', 'DESC']]
+        });
+        return history;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantTotalUsersDB = async(tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            count(*) as total_users
-        FROM
-            users
-        WHERE
-            tenant_id = ?
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result[0]?.total_users || 0;
+        const totalUsers = await User.count({
+            where: { tenant_id: tenantId }
+        });
+        return totalUsers;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantDetailsDB = async(tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            id, name, is_active, created_at, subscription_id, payment_customer_id,
-            subscription_start, subscription_end
-        FROM
-            tenants
-        WHERE
-            id = ?
-        LIMIT 1
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result[0];
+        const tenant = await Tenant.findOne({
+            where: { id: tenantId },
+            attributes: ['id', 'name', 'is_active', 'created_at', 'subscription_id', 'payment_customer_id', 'subscription_start', 'subscription_end']
+        });
+        return tenant;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantStoreDetailsDB = async(tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            tenant_id, store_name, address, phone, email, currency, is_qr_menu_enabled, unique_qr_code
-        FROM
-            store_details
-        WHERE
-            tenant_id = ?
-        LIMIT 1
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result[0];
+        const storeDetails = await StoreDetails.findOne({
+            where: { tenant_id: tenantId },
+            attributes: ['tenant_id', 'store_name', 'address', 'phone', 'email', 'currency', 'is_qr_menu_enabled', 'unique_qr_code']
+        });
+        return storeDetails;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantsDB = async (page, perPage, search, status, type , from , to) => {
-    const conn = await getMySqlPromiseConnection();
     try {
         const currentPage = parseInt(page) || 1;
         const limit = parseInt(perPage) || 5;
         const offset = (currentPage - 1) * limit;
-        let queryParams = [];
+        let whereCondition = {};
+        let includeCondition = [{
+            model: User,
+            as: 'adminUser', // Alias for the included User model
+            attributes: ['username'],
+            where: { role: 'admin' },
+            required: false // LEFT JOIN
+        }];
 
-        let query = `
-            SELECT t.*, u.username AS email
-            FROM tenants t
-            LEFT JOIN users u ON t.id = u.tenant_id and u.role = 'admin'
-            WHERE 1=1
-        `;
-
-        if (status == 'active') {
-            query += " AND t.is_active = 1";
-        } else if (status == 'inactive') {
-            query += " AND t.is_active = 0";
+        if (status === 'active') {
+            whereCondition.is_active = true;
+        } else if (status === 'inactive') {
+            whereCondition.is_active = false;
         }
 
         if (search) {
-            const searchParam = `%${search}%`
-            query += ` AND (t.name LIKE '${searchParam}' OR u.username LIKE '${searchParam}')`;
+            whereCondition[Op.or] = [
+                { name: { [Op.like]: `%${search}%` } },
+                { '$adminUser.username$': { [Op.like]: `%${search}%` } } // Search in associated user's username
+            ];
         }
 
-        const {filter, params} = getFilterConditionForTenants('created_at' , type, from, to)
+        const { filter } = getFilterConditionForTenants('Tenant.created_at', type, from, to); // Note: field needs to be fully qualified for Sequelize
 
-        if(filter){
-            query += ` AND ${filter}`;
-            queryParams.push(params);
+        if (Object.keys(filter).length > 0) {
+            whereCondition.created_at = filter; // Assuming filter returns a Sequelize-compatible where clause
         }
 
-        query += ` ORDER BY t.id DESC LIMIT ${limit} OFFSET ${offset}`;
-
-        const [tenants] = await conn.execute(query , params);
+        const { count, rows: tenants } = await Tenant.findAndCountAll({
+            where: whereCondition,
+            include: includeCondition,
+            limit: limit,
+            offset: offset,
+            order: [['id', 'DESC']],
+            subQuery: false // Important for correct pagination with includes
+        });
 
         const response = {
-            tenants,
-            currentPage,
+            tenants: tenants.map(tenant => ({
+                ...tenant.toJSON(),
+                email: tenant.adminUser ? tenant.adminUser.username : null // Flatten email from associated user
+            })),
+            currentPage: currentPage,
             perPage: limit,
-            // totalPages: Math.ceil((tenants.length) / limit),
-            // totalTenants : tenants.length
+            totalPages: Math.ceil(count / limit),
+            totalTenants: count
         };
 
         return response;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-const getFilterConditionForTenants = (field , type, from, to) => {
-    const params = [];
-    let filter = '';
+const getFilterConditionForTenants = (field, type, from, to) => {
+    let filter = {};
 
     switch (type) {
         case 'custom': {
-            params.push(from, to);
-            filter = `DATE(${field}) >= ? AND DATE(${field}) <= ?`;
+            filter = {
+                [Op.between]: [from, to]
+            };
             break;
         }
         case 'today': {
-            filter = `DATE(${field}) = CURDATE()`;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            filter = {
+                [Op.gte]: today,
+                [Op.lt]: tomorrow
+            };
             break;
         }
         case 'this_month': {
-            filter = `YEAR(${field}) = YEAR(NOW()) AND MONTH(${field}) = MONTH(NOW())`;
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            startOfMonth.setHours(0, 0, 0, 0);
+            const endOfMonth = new Date(startOfMonth);
+            endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+            endOfMonth.setDate(0); // Last day of the month
+            endOfMonth.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: startOfMonth,
+                [Op.lte]: endOfMonth
+            };
             break;
         }
         case 'last_month': {
-            filter = `YEAR(${field}) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) AND MONTH(${field}) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))`;
+            const startOfLastMonth = new Date();
+            startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
+            startOfLastMonth.setDate(1);
+            startOfLastMonth.setHours(0, 0, 0, 0);
+            const endOfLastMonth = new Date(startOfLastMonth);
+            endOfLastMonth.setMonth(endOfLastMonth.getMonth() + 1);
+            endOfLastMonth.setDate(0); // Last day of the month
+            endOfLastMonth.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: startOfLastMonth,
+                [Op.lte]: endOfLastMonth
+            };
             break;
         }
         case 'last_7days': {
-            filter = `DATE(${field}) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`;
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            sevenDaysAgo.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: sevenDaysAgo,
+                [Op.lte]: today
+            };
             break;
         }
         case 'yesterday': {
-            filter = `DATE(${field}) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`;
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setHours(0, 0, 0, 0);
+            const endOfYesterday = new Date(yesterday);
+            endOfYesterday.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: yesterday,
+                [Op.lte]: endOfYesterday
+            };
             break;
         }
         case 'tomorrow': {
-            filter = `DATE(${field}) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)`;
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            const endOfTomorrow = new Date(tomorrow);
+            endOfTomorrow.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: tomorrow,
+                [Op.lt]: endOfTomorrow
+            };
             break;
         }
         default: {
-            filter = '';
+            filter = {};
         }
     }
 
-    return { params, filter };
+    return { filter };
 }
 
 
 exports.addTenantDB = async ({ name, email, password, isAdmin , isActive }) => {
-    const conn = await getMySqlPromiseConnection();
+    let t;
     try {
-        await conn.beginTransaction();
+        t = await sequelize.transaction(); // Start a transaction
 
-        const [tenantResult] = await conn.query(
-            `INSERT INTO tenants (name, is_active) VALUES (?, ?)`,
-            [name, isActive ? 1 : 0]
+        const tenant = await Tenant.create(
+            { name: name, is_active: isActive ? 1 : 0 },
+            { transaction: t }
         );
 
-        const tenantId = tenantResult.insertId;
-
-        const userExist = await doUserExistDB(email);
+        const userExist = await User.findOne({ where: { username: email }, transaction: t });
         if(userExist) {
-            throw("User already exist! Try Different Email!");
+            throw new Error("User already exist! Try Different Email!");
         }
 
         const encryptedPassword = await bcrypt.hash(password, CONFIG.PASSWORD_SALT);
 
         const role = isAdmin ? 'admin' : 'user';
 
-        const [userResult] = await conn.query(
-            `INSERT INTO users (username, password, name, role , tenant_id) VALUES (?, ?, ?, ? , ?)`,
-            [email, encryptedPassword, name, role , tenantId]
+        await User.create(
+            { username: email, password: encryptedPassword, name: name, role: role, tenant_id: tenant.id },
+            { transaction: t }
         );
 
-        await conn.commit();
+        await t.commit(); // Commit the transaction
 
-        return { tenantId, name, isActive , role};
+        return { tenantId: tenant.id, name, isActive , role};
     } catch (error) {
-        await conn.rollback();
+        if (t) await t.rollback(); // Rollback on error
+        console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getTenantCntByIdDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            COUNT(*) as count
-        FROM
-            tenants
-        WHERE
-            id = ?
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result[0].count || null;
+        const count = await Tenant.count({
+            where: { id: tenantId }
+        });
+        return count || null;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantDetailsByIdDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            t.is_active, u.username
-        FROM
-            tenants t JOIN users u
-        ON
-            t.id = u.tenant_id
-        WHERE
-            t.id = ?
-        `;
+        const tenant = await Tenant.findOne({
+            where: { id: tenantId },
+            include: [{
+                model: User,
+                attributes: ['username'],
+                where: { role: 'admin' }
+            }]
+        });
 
-        const [result] = await conn.query(sql, [tenantId]);
+        if (!tenant) {
+            return null;
+        }
 
-        return result[0] || null;
+        const tenantDetails = {
+            is_active: tenant.is_active,
+            username: tenant.User ? tenant.User.username : null
+        };
+        return tenantDetails;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.updateTenantDB = async(tenantId , name , email , isActive, existingEmail) => {
-    const conn = await getMySqlPromiseConnection();
+    let t;
     try {
-        await conn.beginTransaction();
+        t = await sequelize.transaction(); // Start a transaction
 
-        const updateTenantSQL = `
-        UPDATE tenants
-        SET is_active = ?, name = ?
-        WHERE id = ?;
-        `;
+        await Tenant.update(
+            { is_active: isActive, name: name },
+            { where: { id: tenantId }, transaction: t }
+        );
 
-        await conn.query(updateTenantSQL, [isActive, name, tenantId]);
+        const currentUser = await User.findOne({ where: { tenant_id: tenantId, role: 'admin' }, transaction: t });
 
-        const [currentUser] = await conn.query('SELECT name, username FROM users WHERE tenant_id = ? and username = ?', [tenantId, existingEmail]);
+        if (currentUser) {
+            if (currentUser.name !== name) {
+                await User.update(
+                    { name: name },
+                    { where: { id: currentUser.id }, transaction: t }
+                );
+            }
 
-        if (currentUser.length === 0) {
-            throw new Error('User not found');
+            if (currentUser.username !== email) {
+                await User.update(
+                    { username: email },
+                    { where: { id: currentUser.id }, transaction: t }
+                );
+            }
         }
+        // If no admin user, just update tenant
 
-        if (currentUser[0].name !== name) {
-            const updateNameSql = `
-                UPDATE users
-                SET name = ?
-                WHERE tenant_id = ? AND username = ?;
-            `;
-
-            await conn.query(updateNameSql, [name, tenantId, existingEmail]);
-        }
-
-        if (currentUser[0].username !== email) {
-            const updateUsernameSql = `
-                UPDATE users
-                SET username = ?
-                WHERE tenant_id = ? AND username = ?;
-            `;
-
-            await conn.query(updateUsernameSql, [email, tenantId, existingEmail]);
-        }
-        await conn.commit();
+        await t.commit(); // Commit the transaction
         return;
     } catch (error) {
-        conn.rollback();
-        console.error(error);
+        if (t) await t.rollback(); // Rollback on error
+        console.error('Error updating tenant:', error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.logoutAllUsersOfTenantDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        await conn.query('DELETE FROM refresh_tokens where tenant_id = ?' , [tenantId]);
+        await RefreshToken.destroy({
+            where: { tenant_id: tenantId }
+        });
     } catch (error) {
         console.error('Error logging out all users:', error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteTenantDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        await conn.query('DELETE FROM tenants where id = ?' , [tenantId]);
+        await Tenant.destroy({
+            where: { id: tenantId }
+        });
     } catch (error) {
         console.error('Error deleting tenant : ', error);
-              throw error;
-    } finally {
-        conn.release();
+        throw error;
     }
 }
 
 exports.getRestaurantsTotalCustomersDB = async() => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT
-            count(*) AS total_customers
-        FROM
-            customers
-        `;
-
-        const [result] = await conn.query(sql, []);
-
-        return result[0]?.total_customers || 0;
+        const totalCustomers = await Customer.count();
+        return totalCustomers;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getTenantsDataByStatusDB = async (is_active) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        let sql = `
-            SELECT t.*, u.username AS email
-            FROM tenants t
-            LEFT JOIN users u ON t.id = u.tenant_id AND u.role = 'admin'
-        `;
-
-        const params = [];
+        let whereCondition = {};
+        let includeCondition = [{
+            model: User,
+            as: 'adminUser',
+            attributes: ['username'],
+            where: { role: 'admin' },
+            required: false
+        }];
 
         if (is_active != null) {
-            sql += ' WHERE t.is_active = ?';
-            params.push(is_active);
+            whereCondition.is_active = is_active;
         }
 
-        const [result] = await conn.query(sql, params);
+        const tenants = await Tenant.findAll({
+            where: whereCondition,
+            include: includeCondition,
+        });
 
-        return result;
-         } catch (error) {
+        return tenants.map(tenant => ({
+            ...tenant.toJSON(),
+            email: tenant.adminUser ? tenant.adminUser.username : null
+        }));
+    } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getSuperAdminTopSellingItemsDB = async(type, from, to) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const {filter, params} = getFilterCondition('date', type, from, to);
+        const { filter } = getFilterCondition('OrderItem.date', type, from, to);
 
-        const sql = `
-        SELECT
-            trending_items.tenant_id,
-            t.name as tenant_name,
-            trending_items.item_id,
-            mi.title,
-            qty
-        FROM (
-            SELECT
-                tenant_id,
-                item_id,
-                count(*) AS qty
-            FROM
-                order_items
-            WHERE ${filter}
-            GROUP BY
-                item_id,
-                tenant_id
-            ORDER BY
-                count(*)
-                DESC
-        ) AS trending_items
-        INNER JOIN menu_items mi ON trending_items.item_id = mi.id
-        INNER JOIN tenants t ON trending_items.tenant_id = t.id
-        ORDER BY qty DESC
-        LIMIT 50
-        `;
+        const result = await OrderItem.findAll({
+            attributes: [
+                'tenant_id',
+                'item_id',
+                [sequelize.fn('COUNT', sequelize.col('item_id')), 'qty']
+            ],
+            where: { date: filter },
+            include: [{
+                model: MenuItem,
+                as: 'MenuItem',
+                attributes: ['title']
+            }, {
+                model: Tenant,
+                attributes: ['name']
+            }],
+            group: ['tenant_id', 'item_id', 'MenuItem.title', 'Tenant.name'],
+            order: [[sequelize.literal('qty'), 'DESC']],
+            limit: 50,
+            raw: true,
+        });
 
-        const [result] = await conn.query(sql, params);
-
-        return result;
+        return result.map(item => ({
+            tenant_id: item.tenant_id,
+            tenant_name: item['Tenant.name'],
+            item_id: item.item_id,
+            title: item['MenuItem.title'],
+            qty: item.qty
+        }));
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getSuperAdminSalesVolumeDB = async(type, from, to) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const {filter, params} = getFilterCondition('i.created_at', type, from, to);
+        const { filter } = getFilterCondition('Invoice.created_at', type, from, to);
 
-        const sql = `
-        SELECT
-            IFNULL(SUM(i.total * er.rate_to_usd),0) AS sales_volume_today
-        FROM
-            invoices i
-            LEFT JOIN store_details sd ON i.tenant_id = sd.tenant_id
-            LEFT JOIN exchange_rates er ON sd.currency = er.currency_code
-        WHERE
-            ${filter}
-        `;
+        const result = await Invoice.findOne({
+            attributes: [
+                [sequelize.fn('IFNULL', sequelize.fn('SUM', sequelize.literal('Invoice.total * `Tenant->StoreDetail->ExchangeRate`.rate_to_usd')), 0), 'sales_volume_today']
+            ],
+            where: { created_at: filter },
+            include: [{
+                model: Tenant,
+                attributes: [],
+                include: [{
+                    model: StoreDetails,
+                    as: 'StoreDetail',
+                    attributes: [],
+                    include: [{
+                        model: ExchangeRate,
+                        attributes: []
+                    }]
+                }]
+            }],
+            raw: true,
+        });
 
-        const [result] = await conn.query(sql, params);
-
-        return result[0]?.sales_volume_today || 0;
+        return result ? result.sales_volume_today : 0;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
 exports.getSuperAdminOrdersProcessedDB = async(type, from, to) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const {filter, params} = getFilterCondition('date', type, from, to);
+        const { filter } = getFilterCondition('Order.date', type, from, to);
 
-        const sql = `
-        SELECT
-            COUNT(*) AS orders
-        FROM
-            orders
-        WHERE
-            ${filter}
-        `;
-
-        const [result] = await conn.query(sql, params);
-
-        return result[0]?.orders || 0;
+        const orders = await Order.count({
+            where: { date: filter }
+        });
+        return orders;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 
 const getFilterCondition = (field, type, from, to) => {
-    const params = [];
-    let filter = '';
+    let filter = {};
 
     switch (type) {
         case 'custom': {
-            params.push(from, to);
-            filter = `DATE(${field}) >= ? AND DATE(${field}) <= ?`;
+            filter = {
+                [Op.between]: [from, to]
+            };
             break;
         }
         case 'today': {
-            filter = `DATE(${field}) = CURDATE()`;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            filter = {
+                [Op.gte]: today,
+                [Op.lt]: tomorrow
+            };
             break;
         }
         case 'this_month': {
-            filter = `YEAR(${field}) = YEAR(NOW()) AND MONTH(${field}) = MONTH(NOW())`;
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            startOfMonth.setHours(0, 0, 0, 0);
+            const endOfMonth = new Date(startOfMonth);
+            endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+            endOfMonth.setDate(0); // Last day of the month
+            endOfMonth.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: startOfMonth,
+                [Op.lte]: endOfMonth
+            };
             break;
         }
         case 'last_month': {
-            // filter = `DATE(${field}) >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND DATE(${field}) <= CURDATE()`;
-            filter = `MONTH(${field}) = MONTH(DATE_ADD(NOW(), INTERVAL -1 MONTH)) AND YEAR(${field}) = YEAR(DATE_ADD(NOW(), INTERVAL -1 MONTH))`;
+            const startOfLastMonth = new Date();
+            startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
+            startOfLastMonth.setDate(1);
+            startOfLastMonth.setHours(0, 0, 0, 0);
+            const endOfLastMonth = new Date(startOfLastMonth);
+            endOfLastMonth.setMonth(endOfLastMonth.getMonth() + 1);
+            endOfLastMonth.setDate(0); // Last day of the month
+            endOfLastMonth.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: startOfLastMonth,
+                [Op.lte]: endOfLastMonth
+            };
             break;
         }
         case 'last_7days': {
-            filter = `DATE(${field}) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND DATE(${field}) <= CURDATE()`;
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            sevenDaysAgo.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: sevenDaysAgo,
+                [Op.lte]: today
+            };
             break;
         }
         case 'yesterday': {
-            filter = `DATE(${field}) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`;
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setHours(0, 0, 0, 0);
+            const endOfYesterday = new Date(yesterday);
+            endOfYesterday.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: yesterday,
+                [Op.lte]: endOfYesterday
+            };
             break;
         }
         case 'tomorrow': {
-            filter = `DATE(${field}) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)`;
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            const endOfTomorrow = new Date(tomorrow);
+            endOfTomorrow.setHours(23, 59, 59, 999);
+            filter = {
+                [Op.gte]: tomorrow,
+                [Op.lt]: endOfTomorrow
+            };
             break;
         }
         default: {
-            filter = '';
+            filter = {};
         }
     }
 
-    return { params, filter };
+    return { filter };
 }
 
 exports.updateTenantSubscriptionDB = async (tenantId, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive) => {
-    const conn = await getMySqlPromiseConnection();
     try {
-        const sql = `
-        UPDATE tenants
-        SET
-            subscription_id = ?,
-            payment_customer_id = ?,
-            subscription_start = ?,
-            subscription_end = ?,
-            is_active = ?
-        WHERE
-            id = ?;
-        `;
-        await conn.query(sql, [subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive, tenantId]);
+        await Tenant.update(
+            {
+                subscription_id: subscriptionId,
+                payment_customer_id: paymentCustomerId,
+                subscription_start: subscriptionStart,
+                subscription_end: subscriptionEnd,
+                is_active: isActive
+            },
+            {
+                where: { id: tenantId }
+            }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };

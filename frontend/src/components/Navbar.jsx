@@ -199,7 +199,7 @@ export default function Navbar() {
   }
 
   return (
-    <div className="relative h-screen">
+    <div id="tour-sidebar" className="relative h-screen">
       <div className="flex flex-col items-start gap-2 md:w-72  md:gap-3 h-screen px-5 py-6 overflow-y-auto fixed left-0 top-0 bg-restro-green-light">
         <img src={theme === 'black' ? LogoDark : Logo } alt="logo" className="block w-12 md:w-auto md:h-14 mb-2 md:mb-6"/>
 

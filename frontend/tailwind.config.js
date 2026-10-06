@@ -4,63 +4,57 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode : "class",
+  darkMode: "class",
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["Nunito", "sans-serif"],
+      },
       colors: {
-        'restro-green-light' : 'var(--restro-green-light)',
-        'restro-green' : 'var(--restro-green)',
-        'restro-green-10' : 'var(--restro-green-10)',
-        'restro-border-green' : 'var(--restro-border-green)',
-        'restro-text' : 'var(--restro-text)',
-        'restro-gray' : 'var(--restro-gray)',
-        'restro-ring' : 'var(--restro-ring)',
-        'restro-bg-gray' : 'var(--restro-bg-gray)',
-        'restro-card-bg' : 'var(--restro-card-bg)',
-        'restro-button-hover' : 'var(--restro-button-hover)',
-        'restro-green-button-hover' : 'var(--restro-green-button-hover)',
-        'restro-red' : 'var(--restro-red)',
-        'restro-bg-red' : 'var(--restro-bg-red)',
-        'restro-red-hover' : 'var(--restro-red-hover)',
-        'restro-yellow' : 'var(--restro-yellow)',
-        'restro-bg-yellow' : 'var(--restro-bg-yellow)',
-        'restro-yellow-hover' : 'var(--restro-yellow-hover)',
-        'restro-checkbox' : 'var(--restro-checkbox)',
+        'restro-green-light': 'var(--restro-green-light)',
+        'restro-green': 'var(--restro-green)',
+        'restro-green-10': 'var(--restro-green-10)',
+        'restro-border-green': 'var(--restro-border-green)',
+        'restro-text': 'var(--restro-text)',
+        'restro-gray': 'var(--restro-gray)',
+        'restro-ring': 'var(--restro-ring)',
+        'restro-bg-gray': 'var(--restro-bg-gray)',
+        'restro-card-bg': 'var(--restro-card-bg)',
+        'restro-button-hover': 'var(--restro-button-hover)',
+        'restro-green-button-hover': 'var(--restro-green-button-hover)',
+        'restro-red': 'var(--restro-red)',
+        'restro-bg-red': 'var(--restro-bg-red)',
+        'restro-red-hover': 'var(--restro-red-hover)',
+        'restro-yellow': 'var(--restro-yellow)',
+        'restro-bg-yellow': 'var(--restro-bg-yellow)',
+        'restro-yellow-hover': 'var(--restro-yellow-hover)',
+        'restro-checkbox': 'var(--restro-checkbox)',
 
         'background': 'var(--background)',
         'foreground': 'var(--foreground)',
 
+        'restro-green-dark': "var(--restro-green-dark, #0F172A)",
+        'restro-border-green-light': "var(--restro-border-green-light, #CBD5E1)",
+        'restro-superadmin-widget-bg': "var(--restro-superadmin-widget-bg, #1E3A8A)",
+        'restro-superadmin-text-green': "var(--restro-superadmin-text-green, #2563EB)",
+        'restro-superadmin-text-black': "var(--restro-superadmin-text-black, #1E293B)",
 
-        // 'restro-green-light': "#ECF1EB",
-        'restro-green': "var(--restro-green)",
-        'restro-green-dark': "#243922",
-        'restro-border-green-light': "#DCE7DB",
-        'restro-superadmin-widget-bg': "#BEDC74",
-        'restro-superadmin-text-green': "#387F39",
-        'restro-superadmin-text-black': "#444444",
+        // Dark theme colors
+        'restro-green-dark-mode': "#1E3A8A",
+        'restro-border-dark-mode': '#334155',
+        'restro-text-dark-mode': '#F8FAFC',
+        'restro-bg-seconday-dark-mode': '#1E293B',
+        'restro-gray-dark-mode': '#0F172A',
+        'restro-bg-card-dark-mode': '#1E293B',
+        'restro-card-border-dark-mode': '#334155',
+        'restro-card-iconbg': '#1E293B',
+        'restro-bg-hover-dark-mode': '#334155',
+        'restro-bg-button-dark-mode': '#1E3A8A',
+        'restro-placeholder-outline-dark-mode': '#64748B',
 
-        // 'restro-text-light-mode' : "#FFFFFF",
-        // 'restro-text-dark-mode' : "#F0F0F0",
-        
-        
-        // dark theme colors
-        'restro-green-dark-mode' : "#255F38",
-        'restro-border-dark-mode' : '#333333',
-        'restro-text-dark-mode' : '#F0F0F0',
-        'restro-bg-seconday-dark-mode' : '#232323',
-        'restro-gray-dark-mode' : '#121212',
-        'restro-bg-card-dark-mode' : '#121212',
-        'restro-card-border-dark-mode' : '#222222',
-        'restro-card-iconbg' : '#252525',
-        'restro-bg-hover-dark-mode' : '#353535',
-        'restro-bg-button-dark-mode' : '#33632E',
-        'restro-placeholder-outline-dark-mode' : '#636161',
-        
-        //light theme colors
-        'restro-border-light-mode' : '#DCE7DB',
-        'restro-text-light-mode' : '#BDBDBD',
-
-
+        // Light theme colors
+        'restro-border-light-mode': '#CBD5E1',
+        'restro-text-light-mode': '#475569',
       },
       keyframes: {
         fadeIn: {
@@ -73,7 +67,7 @@ export default {
       }
     },
   },
-  plugins: [require("daisyui"), require('tailwind-scrollbar'),],
+  plugins: [require("daisyui"), require('tailwind-scrollbar')],
   daisyui: {
     themes: ["light", "black"],
     darkTheme: "black",

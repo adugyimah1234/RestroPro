@@ -12,6 +12,7 @@ import { getImageURL } from "../../helpers/ImageHelper";
 import { useTranslation } from "react-i18next";
 import AsyncSelect from "react-select/async"
 import { useTheme } from "../../contexts/ThemeContext";
+import Popover from "../../components/Popover";
 
 export default function MenuItemViewPage() {
   const { t } = useTranslation();
@@ -89,24 +90,24 @@ export default function MenuItemViewPage() {
     try {
       const res = await getMenuItem(id);
       if(res.status == 200) {
-       setTimeout(() => {
-        if(taxIdRef.current){
-          taxIdRef.current.value = res.data?.formattedMenuItem?.tax_id;
-        }
+        const menuItem = res.data?.formattedMenuItem || {};
+        setTimeout(() => {
+          if(titleRef.current) titleRef.current.value = menuItem.title || "";
+          if(descriptionRef.current) descriptionRef.current.value = menuItem.description || "";
+          if(priceRef.current) priceRef.current.value = menuItem.price ?? "";
+          if(netPriceRef.current) netPriceRef.current.value = menuItem.net_price ?? "";
+          if(taxIdRef.current) taxIdRef.current.value = menuItem.tax_id || "";
+          if(categoryIdRef.current) categoryIdRef.current.value = menuItem.category_id || "";
+        }, 100);
 
-        if(categoryIdRef.current){
-          categoryIdRef.current.value = res.data?.formattedMenuItem?.category_id;
-        }
-       }, 100)
-
-        setState({
-          ...state,
-          menuItem: res.data?.formattedMenuItem || {},
-          variants: res.data?.formattedMenuItem?.variants || [],
-          addons: res.data?.formattedMenuItem?.addons || [],
-          recipeItems: res.data?.formattedMenuItem?.recipeItems || [],
+        setState((prevState) => ({
+          ...prevState,
+          menuItem: menuItem,
+          variants: menuItem.variants || [],
+          addons: menuItem.addons || [],
+          recipeItems: menuItem.recipeItems || [],
           inventoryItems: res.data?.inventoryItems || []
-        })
+        }));
       }
     } catch (error) {
       console.log(error);
@@ -157,26 +158,26 @@ export default function MenuItemViewPage() {
 
 
   async function btnSave() {
-    const title = titleRef.current.value;
-    const description = descriptionRef.current.value;
-    const price = priceRef.current.value;
-    const netPrice = netPriceRef.current.value || null;
-    const categoryId = categoryIdRef.current.value || null;
-    const taxId = taxIdRef.current.value || null;
+    const title = titleRef.current?.value?.trim();
+    const description = descriptionRef.current?.value?.trim() || null;
+    const price = priceRef.current?.value;
+    const netPrice = netPriceRef.current?.value || null;
+    const categoryId = categoryIdRef.current?.value || null;
+    const taxId = taxIdRef.current?.value || null;
 
     if(!title) {
       toast.error(t('menu_item.provide_title_error'));
       return;
     }
 
-    if(price < 0) {
+    if(price === "" || price === undefined || price === null || isNaN(Number(price)) || Number(price) < 0) {
       toast.error(t('menu_item.provide_valid_price_error'));
       return;
     }
 
     try {
       toast.loading(t('menu_item.please_wait'));
-      const res = await updateMenuItem(id, title, description, price, netPrice, categoryId, taxId);
+      const res = await updateMenuItem(id, title, description, Number(price), netPrice ? Number(netPrice) : null, categoryId, taxId);
 
       if(res.status == 200) {
         await _init(itemId);
@@ -184,7 +185,7 @@ export default function MenuItemViewPage() {
         toast.success(res.data.message);
       }
     } catch (error) {
-      const message = error.response.data.message || t('menu_items.something_went_wrong');
+      const message = error?.response?.data?.message || t('menu_items.something_went_wrong');
       console.error(error);
       toast.dismiss();
       toast.error(message);
@@ -242,8 +243,8 @@ export default function MenuItemViewPage() {
   };
 
   async function btnAddVariant() {
-    const variantTitle = variantTitleRef.current.value;
-    const variantPrice = variantPriceRef.current.value || 0;
+    const variantTitle = variantTitleRef.current?.value?.trim();
+    const variantPrice = variantPriceRef.current?.value || 0;
 
     if(!variantTitle) {
       toast.error(t('menu_item.provide_variant_title_error'));
@@ -256,12 +257,13 @@ export default function MenuItemViewPage() {
 
     try {
       toast.loading(t('menu_item.please_wait'));
-      const res = await addMenuItemVariant(id, variantTitle, variantPrice);
+      const res = await addMenuItemVariant(id, variantTitle, Number(variantPrice));
 
       if(res.status == 200) {
-        variantTitleRef.current.value = null;
-        variantPriceRef.current.value = null;
+        if (variantTitleRef.current) variantTitleRef.current.value = "";
+        if (variantPriceRef.current) variantPriceRef.current.value = "";
 
+        document.getElementById('modal-add-variant')?.close();
         await _init(itemId);
         toast.dismiss();
         toast.success(res.data.message);
@@ -276,16 +278,16 @@ export default function MenuItemViewPage() {
   }
 
   const btnShowVariantUpdate = (variantId, title, price) => {
-    variantIdRef.current.value = variantId;
-    variantTitleUpdateRef.current.value = title;
-    variantPriceUpdateRef.current.value = price;
-    document.getElementById('modal-update-variant').showModal()
+    if (variantIdRef.current) variantIdRef.current.value = variantId;
+    if (variantTitleUpdateRef.current) variantTitleUpdateRef.current.value = title;
+    if (variantPriceUpdateRef.current) variantPriceUpdateRef.current.value = price;
+    document.getElementById('modal-update-variant')?.showModal()
   };
 
   async function btnUpdateVariant() {
-    const variantId = variantIdRef.current.value;
-    const variantTitle = variantTitleUpdateRef.current.value;
-    const variantPrice = variantPriceUpdateRef.current.value || 0;
+    const variantId = variantIdRef.current?.value;
+    const variantTitle = variantTitleUpdateRef.current?.value?.trim();
+    const variantPrice = variantPriceUpdateRef.current?.value || 0;
 
     if(!variantTitle) {
       toast.error(t('menu_item.provide_variant_title_error'));
@@ -298,13 +300,10 @@ export default function MenuItemViewPage() {
 
     try {
       toast.loading(t('menu_item.please_wait'));
-      const res = await updateMenuItemVariant(id, variantId, variantTitle, variantPrice);
+      const res = await updateMenuItemVariant(id, variantId, variantTitle, Number(variantPrice));
 
       if(res.status == 200) {
-        variantIdRef.current.value = null;
-        variantTitleUpdateRef.current.value = null;
-        variantPriceUpdateRef.current.value = null;
-
+        document.getElementById('modal-update-variant')?.close();
         await _init(itemId);
         toast.dismiss();
         toast.success(res.data.message);
@@ -319,8 +318,8 @@ export default function MenuItemViewPage() {
   }
 
   async function btnAddAddon() {
-    const addonTitle = addonTitleRef.current.value;
-    const addonPrice = addonPriceRef.current.value || 0;
+    const addonTitle = addonTitleRef.current?.value?.trim();
+    const addonPrice = addonPriceRef.current?.value || 0;
 
     if(!addonTitle) {
       toast.error(t('menu_item.provide_addon_title_error'));
@@ -333,12 +332,13 @@ export default function MenuItemViewPage() {
 
     try {
       toast.loading(t('menu_item.please_wait'));
-      const res = await addMenuItemAddon(id, addonTitle, addonPrice);
+      const res = await addMenuItemAddon(id, addonTitle, Number(addonPrice));
 
       if(res.status == 200) {
-        addonTitleRef.current.value = null;
-        addonPriceRef.current.value = null;
+        if (addonTitleRef.current) addonTitleRef.current.value = "";
+        if (addonPriceRef.current) addonPriceRef.current.value = "";
 
+        document.getElementById('modal-add-addon')?.close();
         await _init(itemId);
         toast.dismiss();
         toast.success(res.data.message);
@@ -360,9 +360,9 @@ export default function MenuItemViewPage() {
   };
 
   async function btnUpdateAddon() {
-    const addonId = addonIdRef.current.value;
-    const addonTitle = addonTitleUpdateRef.current.value;
-    const addonPrice = addonPriceUpdateRef.current.value || 0;
+    const addonId = addonIdRef.current?.value;
+    const addonTitle = addonTitleUpdateRef.current?.value?.trim();
+    const addonPrice = addonPriceUpdateRef.current?.value || 0;
 
     if(!addonTitle) {
       toast.error(t('menu_item.provide_addon_title_error'));
@@ -375,13 +375,10 @@ export default function MenuItemViewPage() {
 
     try {
       toast.loading(t('menu_item.please_wait'));
-      const res = await updateMenuItemAddon(id, addonId, addonTitle, addonPrice);
+      const res = await updateMenuItemAddon(id, addonId, addonTitle, Number(addonPrice));
 
       if(res.status == 200) {
-        addonIdRef.current.value = null;
-        addonTitleUpdateRef.current.value = null;
-        addonPriceUpdateRef.current.value = null;
-
+        document.getElementById('modal-update-addon')?.close();
         await _init(itemId);
         toast.dismiss();
         toast.success(res.data.message);
@@ -722,12 +719,15 @@ export default function MenuItemViewPage() {
 
           <div className="flex gap-4 w-full my-4 flex-col lg:flex-row">
             <div className="flex-1">
-              <label
-                htmlFor="price"
-                className={`text-sm mb-1 block ${theme === 'black' ? 'text-gray-400' : ' text-gray-500'}`}
-              >
-                {t('menu_item.price')}
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label
+                  htmlFor="price"
+                  className={`text-sm block ${theme === 'black' ? 'text-gray-400' : ' text-gray-500'}`}
+                >
+                  {t('menu_item.price')}
+                </label>
+                <Popover text={t('menu_item.price_tooltip')} />
+              </div>
               <input
                 ref={priceRef}
                 defaultValue={price}
@@ -738,12 +738,15 @@ export default function MenuItemViewPage() {
               />
             </div>
             <div className="flex-1">
-              <label
-                htmlFor="nprice"
-                className={`text-sm mb-1 block ${theme === 'black' ? 'text-gray-400' : ' text-gray-500'}`}
-              >
-                {t('menu_item.net_price')}
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label
+                  htmlFor="nprice"
+                  className={`text-sm block ${theme === 'black' ? 'text-gray-400' : ' text-gray-500'}`}
+                >
+                  {t('menu_item.net_price')}
+                </label>
+                <Popover text={t('menu_item.net_price_tooltip')} />
+              </div>
               <input
                 ref={netPriceRef}
                 type="number"
@@ -965,17 +968,17 @@ export default function MenuItemViewPage() {
           </div>
 
           <div className="my-4">
-            <label htmlFor="price" className="mb-1 block text-gray-500 text-sm">{t('menu_item.variant_price')}</label>
+            <div className="flex items-center gap-1 mb-1">
+              <label htmlFor="price" className="text-gray-500 text-sm">{t('menu_item.variant_price')}</label>
+              <Popover text={t('menu_item.variant_price_tooltip')} />
+            </div>
             <input ref={variantPriceRef} type="number" name="price" className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green bg-restro-gray' placeholder={t('menu_item.variant_price')} />
             <p className="text-xs text-gray-500 mt-1">{t('menu_item.final_price_note')}</p>
           </div>
 
           <div className="modal-action">
-            <form method="dialog">
-              {/* if there is a button in form, it will close the modal */}
-              <button className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
-              <button onClick={()=>{btnAddVariant();}} className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 ml-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
-            </form>
+            <button type="button" onClick={() => document.getElementById('modal-add-variant')?.close()} className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
+            <button type="button" onClick={()=>{btnAddVariant();}} className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 ml-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
           </div>
         </div>
       </dialog>
@@ -995,17 +998,18 @@ export default function MenuItemViewPage() {
           </div>
 
           <div className="my-4">
-            <label htmlFor="price" className="mb-1 block text-gray-500 text-sm">{t('menu_item.variant_price')}</label>
+            <div className="flex items-center gap-1 mb-1">
+              <label htmlFor="price" className="text-gray-500 text-sm">{t('menu_item.variant_price')}</label>
+              <Popover text={t('menu_item.variant_price_tooltip')} />
+            </div>
             <input ref={variantPriceUpdateRef} type="number" name="price" className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green bg-restro-gray' placeholder={t('menu_item.variant_price')} />
 
             <p className="text-xs text-gray-500 mt-1">{t('menu_item.final_price_note')}</p>
           </div>
 
           <div className="modal-action">
-            <form method="dialog">
-              <button className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
-              <button onClick={()=>{btnUpdateVariant();}} className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 ml-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
-            </form>
+            <button type="button" onClick={() => document.getElementById('modal-update-variant')?.close()} className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
+            <button type="button" onClick={()=>{btnUpdateVariant();}} className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 ml-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
           </div>
         </div>
       </dialog>
@@ -1022,18 +1026,18 @@ export default function MenuItemViewPage() {
           </div>
 
           <div className="my-4">
-            <label htmlFor="price" className="mb-1 block text-gray-500 text-sm">{t('menu_item.addon_price')}</label>
+            <div className="flex items-center gap-1 mb-1">
+              <label htmlFor="price" className="text-gray-500 text-sm">{t('menu_item.addon_price')}</label>
+              <Popover text={t('menu_item.addon_price_tooltip')} />
+            </div>
             <input ref={addonPriceRef} type="number" name="price" className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green bg-restro-gray' placeholder={t('menu_item.addon_price')} />
 
             <p className="text-xs text-gray-500 mt-1">{t('menu_item.final_price_note')}</p>
           </div>
 
           <div className="modal-action">
-            <form method="dialog">
-              {/* if there is a button in form, it will close the modal */}
-              <button className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 flex-1 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
-              <button onClick={()=>{btnAddAddon();}} className = 'btn rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 text-white ml-3 border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
-            </form>
+            <button type="button" onClick={() => document.getElementById('modal-add-addon')?.close()} className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 flex-1 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
+            <button type="button" onClick={()=>{btnAddAddon();}} className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 text-white ml-3 border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
           </div>
         </div>
       </dialog>
@@ -1051,18 +1055,18 @@ export default function MenuItemViewPage() {
           </div>
 
           <div className="my-4">
-            <label htmlFor="price" className="mb-1 block text-gray-500 text-sm">{t('menu_item.addon_price')}</label>
+            <div className="flex items-center gap-1 mb-1">
+              <label htmlFor="price" className="text-gray-500 text-sm">{t('menu_item.addon_price')}</label>
+              <Popover text={t('menu_item.addon_price_tooltip')} />
+            </div>
             <input ref={addonPriceUpdateRef} type="number" name="price" className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green bg-restro-gray' placeholder={t('menu_item.addon_price')} />
 
             <p className="text-xs text-gray-500 mt-1">{t('menu_item.final_price_note')}</p>
           </div>
 
           <div className="modal-action">
-            <form method="dialog">
-              {/* if there is a button in form, it will close the modal */}
-              <button className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 flex-1 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
-              <button onClick={()=>{btnUpdateAddon();}} className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 ml-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
-            </form>
+            <button type="button" onClick={() => document.getElementById('modal-update-addon')?.close()} className='btn transition active:scale-95 hover:shadow-lg px-4 py-3 flex-1 items-center justify-center align-center rounded-xl border border-restro-border-green bg-restro-card-bg hover:bg-restro-button-hover text-restro-text'>{t('menu_item.close')}</button>
+            <button type="button" onClick={()=>{btnUpdateAddon();}} className='rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 ml-3 text-white border border-restro-border-green bg-restro-green hover:bg-restro-green-button-hover'>{t('menu_item.save')}</button>
           </div>
         </div>
       </dialog>

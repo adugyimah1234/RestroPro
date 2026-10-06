@@ -5,14 +5,15 @@ const { getCurrencyDB } = require("../services/settings.service");
 exports.getDashboardData = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         
         const [ reservations, topSellingItems, ordersCount, newCustomerCount, repeatedCustomerCount, currency ] = await Promise.all([
-            getReservationsDB("today", null, null, tenantId),
-            getTodaysTopSellingItemsDB(tenantId),
-            getTodaysOrdersCountDB(tenantId),
-            getTodaysNewCustomerCountDB(tenantId),
-            getTodaysRepeatCustomerCountDB(tenantId),
-            getCurrencyDB(tenantId)
+            getReservationsDB("today", null, null, tenantId, branchId),
+            getTodaysTopSellingItemsDB(tenantId, branchId),
+            getTodaysOrdersCountDB(tenantId, branchId),
+            getTodaysNewCustomerCountDB(tenantId, branchId),
+            getTodaysRepeatCustomerCountDB(tenantId, branchId),
+            getCurrencyDB(tenantId, branchId)
         ]);
 
         return res.status(200).json({

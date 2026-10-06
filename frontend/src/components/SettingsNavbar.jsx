@@ -11,6 +11,7 @@ import {
   IconLifebuoy,
   IconPrinter,
   IconReceiptTax,
+  IconBuilding,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../contexts/ThemeContext";
@@ -51,6 +52,11 @@ export default function SettingsNavbar() {
       text: t("settings.payment_types"),
       path: "/dashboard/settings/payment-types",
     },
+    {
+      icon: <IconBuilding stroke={iconStroke} />,
+      text: t("settings.branches"),
+      path: "/dashboard/settings/branches",
+    },
     // {
     //   icon: <IconDevices stroke={iconStroke} />,
     //   text: "Devices",
@@ -63,14 +69,26 @@ export default function SettingsNavbar() {
     // },
   ];
 
+  const getTourId = (path) => {
+    if (path === "/dashboard/settings") return "tour-store-details-link";
+    if (path === "/dashboard/settings/print-settings") return "tour-settings-print-link";
+    if (path === "/dashboard/settings/tables") return "tour-settings-tables-link";
+    if (path === "/dashboard/settings/menu-items") return "tour-settings-menu-link";
+    if (path === "/dashboard/settings/tax-setup") return "tour-settings-tax-link";
+    if (path === "/dashboard/settings/payment-types") return "tour-settings-payment-link";
+    if (path === "/dashboard/settings/branches") return "tour-settings-branches-link";
+    return undefined;
+  };
+
   return (
-    <div className='w-20 md:w-60 h-full overflow-y-auto border-r md:px-4 py-3 flex items-center flex-col gap-1 md:gap-3 sticky  left-0 top-20 border-restro-border-green'>
+    <div id="tour-settings-nav" className='w-20 md:w-60 h-full overflow-y-auto border-r md:px-4 py-3 flex items-center flex-col gap-1 md:gap-3 sticky left-0 top-20 border-restro-border-green'>
       {items.map((item, index) => {
         const isActive = item.path === pathname;
         return (
           <Link
             to={item.path}
             key={index}
+            id={getTourId(item.path)}
             className={clsx(
               "w-12 h-12 md:w-full md:h-auto md:min-w-fit flex items-center justify-center md:justify-normal gap-1 md:px-4 md:py-3 rounded-full transition group",
               isActive

@@ -3,6 +3,7 @@ const { doCustomerExistDB, addCustomerDB, getCustomersDB, updateCustomerDB, dele
 exports.addCustomer = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
         const phone = req.body.phone;
         const name = req.body.name;
@@ -18,7 +19,7 @@ exports.addCustomer = async (req, res) => {
             });
         }
 
-        const doCustomerExist = await doCustomerExistDB(phone, tenantId);
+        const doCustomerExist = await doCustomerExistDB(phone, tenantId, branchId);
 
         if(doCustomerExist) {
             return res.status(400).json({
@@ -27,7 +28,7 @@ exports.addCustomer = async (req, res) => {
             });
         }
 
-        await addCustomerDB(phone, name, email, birthDate, gender, isMember, tenantId);
+        await addCustomerDB(phone, name, email, birthDate, gender, isMember, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -46,10 +47,11 @@ exports.addCustomer = async (req, res) => {
 exports.getCustomers = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
         const { page, perPage, sort, filter } = req.query;
 
-        const result = await getCustomersDB(page, perPage, sort, filter, tenantId);
+        const result = await getCustomersDB(page, perPage, sort, filter, tenantId, branchId);
 
         return res.status(200).json(result);
     } catch (error) {
@@ -64,8 +66,9 @@ exports.getCustomers = async (req, res) => {
 exports.getAllCustomers = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
-        const result = await getAllCustomersDB(tenantId);
+        const result = await getAllCustomersDB(tenantId, branchId);
 
         return res.status(200).json(result);
     } catch (error) {
@@ -80,6 +83,7 @@ exports.getAllCustomers = async (req, res) => {
 exports.uploadBulkCustomers = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
         const customers = req.body.customers;
 
@@ -107,7 +111,7 @@ exports.uploadBulkCustomers = async (req, res) => {
             return [phone, name, email, birth_date, gender, tenantId];
         })
 
-        await uploadBulkCustomersDB(formattedResult);
+        await uploadBulkCustomersDB(formattedResult, branchId);
 
         return res.status(200).json({
             success: true,
@@ -125,6 +129,7 @@ exports.uploadBulkCustomers = async (req, res) => {
 exports.updateCustomer = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
         const phone = req.params.id;
         const name = req.body.name;
@@ -139,7 +144,7 @@ exports.updateCustomer = async (req, res) => {
             });
         }
 
-        await updateCustomerDB(phone, name, email, birthDate, gender, tenantId);
+        await updateCustomerDB(phone, name, email, birthDate, gender, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -159,9 +164,10 @@ exports.updateCustomer = async (req, res) => {
 exports.deleteCustomer = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
         const phone = req.params.id;
 
-        await deleteCustomerDB(phone, tenantId);
+        await deleteCustomerDB(phone, tenantId, branchId);
 
         return res.status(200).json({
             success: true,
@@ -180,10 +186,11 @@ exports.deleteCustomer = async (req, res) => {
 exports.getCustomer = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
         const phone = req.params.id;
 
-        const result = await getCustomerDB(phone, tenantId);
+        const result = await getCustomerDB(phone, tenantId, branchId);
 
         if(result) {
             return res.status(200).json(result);
@@ -204,10 +211,11 @@ exports.getCustomer = async (req, res) => {
 exports.searchCustomer = async (req, res) => {
     try {
         const tenantId = req.user.tenant_id;
+        const branchId = req.user.branch_id;
 
         const searchString = req.query.q;
 
-        const result = await searchCustomerDB(searchString, tenantId);
+        const result = await searchCustomerDB(searchString, tenantId, branchId);
 
         if(result.length > 0) {
             return res.status(200).json(result);

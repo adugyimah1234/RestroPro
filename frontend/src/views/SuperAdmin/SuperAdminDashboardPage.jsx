@@ -1,7 +1,6 @@
 import React from 'react'
 import Page from "../../components/Page";
 import ImgGirlSmiling from "../../assets/girl-smiling.webp"
-import ImgUiflowLogo from "../../assets/uiflow-logo.svg"
 import { Link } from 'react-router-dom';
 import { IconArrowRight, IconInfoCircleFilled } from '@tabler/icons-react';
 import { appVersion, iconStroke, subscriptionAmount } from '../../config/config';
@@ -81,7 +80,7 @@ export default function SuperAdminDashboardPage() {
 
       </div>
 
-      <a href='https://uiflow.in' target='_blank' className="mt-16 flex flex-col md:flex-row items-center justify-center gap-4 text-[#A5A5A5]">
+      {/* <a href='https://uiflow.in' target='_blank' className="mt-16 flex flex-col md:flex-row items-center justify-center gap-4 text-[#A5A5A5]">
         <img src={ImgUiflowLogo} alt="logo" className='block shadow w-16 h-16 rounded-2xl' />
         <div>
           <p>
@@ -89,7 +88,7 @@ export default function SuperAdminDashboardPage() {
             Version {appVersion}
           </p>
         </div>
-      </a>
+      </a> */}
 
     </Page>
   )

@@ -1,390 +1,372 @@
 const bcrypt = require("bcrypt");
-const { CONFIG } = require("../config/index")
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { CONFIG } = require("../config/index");
+const { RefreshToken, sequelize, User, Tenant, StoreDetails, ResetPasswordToken, SubscriptionHistory, Op } = require("../models");
+
+
 exports.signInDB = async (username, password) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT username, password, u.name, role, photo, designation, phone, email, scope, tenant_id, t.is_active FROM users u
-        LEFT JOIN tenants t
-        ON u.tenant_id = t.id
-        WHERE username = ?
-        LIMIT 1;
-        `;
+        const user = await User.findOne({
+            where: { username: username },
+            include: [{
+                model: Tenant,
+                attributes: ['is_active']
+            }]
+        });
 
-        const [result] = await conn.query(sql, [username]);
-        const user = result[0];
-
-        if(!user) {
+        if (!user) {
             return null;
         }
 
         const passwordMatch = await bcrypt.compare(password, user.password);
-        if(passwordMatch) {
-            return user;
+        if (passwordMatch) {
+            const userWithTenantStatus = {
+                username: user.username,
+                password: user.password,
+                name: user.name,
+                role: user.role,
+                photo: user.photo,
+                designation: user.designation,
+                phone: user.phone,
+                location: user.location,
+                email: user.email,
+                scope: user.scope || "",
+                tenant_id: user.tenant_id,
+                branch_id: user.branch_id !== undefined ? user.branch_id : null,
+                is_active: user.Tenant ? user.Tenant.is_active : null
+            };
+            return userWithTenantStatus;
         } else {
             return null;
         }
-
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getUserDB = async (username, tenantId) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT username, u.name, role, photo, designation, phone, email, scope, tenant_id, t.is_active FROM users u
-        LEFT JOIN tenants t
-        ON u.tenant_id = t.id
-        WHERE username = ? AND tenant_id = ?
-        LIMIT 1;
-        `;
+        if (!tenantId) return null;
+        const user = await User.findOne({
+            where: { username: username, tenant_id: tenantId },
+            include: [{
+                model: Tenant,
+                attributes: ['is_active']
+            }]
+        });
 
-        const [result] = await conn.query(sql, [username, tenantId]);
-        const user = result[0];
-
-        if(!user) {
+        if (!user) {
             return null;
         }
 
-        return user;
+        const userWithTenantStatus = {
+            username: user.username,
+            name: user.name,
+            role: user.role,
+            photo: user.photo,
+            designation: user.designation,
+            phone: user.phone,
+            location: user.location,
+            email: user.email,
+            scope: user.scope || "",
+            tenant_id: user.tenant_id,
+            branch_id: user.branch_id !== undefined ? user.branch_id : null,
+            is_active: user.Tenant ? user.Tenant.is_active : null
+        };
+        return userWithTenantStatus;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.checkEmailExistsDB = async (email) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT username FROM users
-        WHERE username = ?
-        LIMIT 1;
-        `;
+        const user = await User.findOne({
+            where: { username: email },
+            attributes: ['username']
+        });
 
-        const [result] = await conn.query(sql, [email]);
-        const user = result[0];
-
-        if(!user) {
-            return false;
-        } else {
-            return true;
-        }
+        return !!user;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.checkEmailExistsSuperadminDB = async (email, tenantId) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT username FROM users
-        WHERE username = ? AND tenant_id != ?
-        LIMIT 1;
-        `;
+        const user = await User.findOne({
+            where: {
+                username: email,
+                tenant_id: {
+                    [Op.ne]: tenantId
+                }
+            },
+            attributes: ['username']
+        });
 
-        const [result] = await conn.query(sql, [email, tenantId]);
-        const user = result[0];
+        return !!user;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
 
-        if(!user) {
-            return false;
-        } else {
-            return true;
+exports.signUpDB = async (bizName, username, password, phone, location) => {
+    try {
+        const tenant = await Tenant.create({
+            name: bizName,
+            is_active: 0,
+            subscription_id: null
+        });
+
+        await User.create({
+            username: username,
+            password: password,
+            name: bizName,
+            role: 'admin',
+            phone: phone || null,
+            location: location || null,
+            tenant_id: tenant.id
+        });
+
+        try {
+            await StoreDetails.create({
+                tenant_id: tenant.id,
+                store_name: bizName,
+                address: location || null,
+                phone: phone || null,
+                email: username,
+                currency: 'GHS'
+            });
+        } catch (stErr) {
+            console.log("StoreDetails creation on signup note:", stErr.message);
         }
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
-    }
-};
-
-exports.signUpDB = async (bizName, username, password) => {
-
-    const conn = await getMySqlPromiseConnection();
-
-    try {
-        const [result] = await conn.query(`INSERT INTO tenants (name, is_active, subscription_id) VALUES (?, 0, null)`, [bizName])
-
-        const sql = `
-        INSERT INTO users (username, password, name, role, tenant_id) VALUES (?, ?, ?, 'admin', ?);
-        `;
-
-        await conn.query(sql, [username, password, bizName, result.insertId]);
-    } catch (error) {
-        console.error(error);
-        throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.addRefreshTokenDB = async (username, refreshToken, expiry, deviceIP, deviceName, deviceLocation, tenantId) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO refresh_tokens (username, refresh_token, device_ip, device_name, device_location, expiry, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [username, refreshToken, deviceIP, deviceName, deviceLocation, expiry, tenantId]);
-        return result.insertId;
+        const result = await RefreshToken.create({
+            username: username,
+            refresh_token: refreshToken,
+            device_ip: deviceIP,
+            device_name: deviceName,
+            device_location: deviceLocation,
+            expiry: expiry.toISOString(),
+            tenant_id: tenantId
+        });
+        return result.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.removeRefreshTokenDB = async (username, refreshToken) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        DELETE FROM refresh_tokens
-        WHERE username = ? AND refresh_token = ?;
-        DELETE FROM refresh_tokens
-        WHERE username = ? AND expiry < CURDATE();
-        `;
-
-        await conn.query(sql, [username, refreshToken, username]);
+        await RefreshToken.destroy({
+            where: {
+                username: username,
+                refresh_token: refreshToken
+            }
+        });
+        await RefreshToken.destroy({
+            where: {
+                username: username,
+                expiry: {
+                    [Op.lt]: new Date()
+                }
+            }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.removeRefreshTokenByDeviceIdDB = async (username, deviceId) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        DELETE FROM refresh_tokens
-        WHERE username = ? AND device_id = ?;
-        DELETE FROM refresh_tokens
-        WHERE username = ? AND expiry < CURDATE();
-        `;
-
-        await conn.query(sql, [username, deviceId, username]);
+        await RefreshToken.destroy({
+            where: {
+                username: username,
+                device_id: deviceId
+            }
+        });
+        await RefreshToken.destroy({
+            where: {
+                username: username,
+                expiry: {
+                    [Op.lt]: new Date()
+                }
+            }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 
 exports.getDevicesDB = async (username) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT device_id, refresh_token, device_ip, device_name, device_location, created_at FROM refresh_tokens
-        WHERE username = ?;
-        `;
-
-        const [results] = await conn.query(sql, [username]);
+        const results = await RefreshToken.findAll({
+            where: { username: username },
+            attributes: ['device_id', 'refresh_token', 'device_ip', 'device_name', 'device_location', 'createdAt']
+        });
         return results;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.verifyRefreshTokenDB = async (refreshToken) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT username, refresh_token FROM refresh_tokens
-        WHERE refresh_token = ?
-        LIMIT 1;
-        `;
-
-        const [result] = await conn.query(sql, [refreshToken]);
-        return result[0];
+        const result = await RefreshToken.findOne({
+            where: { refresh_token: refreshToken },
+            attributes: ['username', 'refresh_token']
+        });
+        return result;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.forgotPasswordDB = async (email, token, tokenValidity) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        INSERT INTO reset_password_tokens
-        (username, reset_token, expires_at)
-        VALUES
-        (?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        reset_token = VALUES(reset_token),
-        expires_at = VALUES(expires_at);
-        `;
-
-        await conn.query(sql, [email, token, tokenValidity]);
+        await ResetPasswordToken.upsert({
+            username: email,
+            reset_token: token,
+            expires_at: tokenValidity
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.deleteForgotPasswordTokenDB = async (token) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        DELETE FROM reset_password_tokens
-        WHERE reset_token = ?;
-        `;
-
-        await conn.query(sql, [token]);
+        await ResetPasswordToken.destroy({
+            where: { reset_token: token }
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.checkForgotPasswordTokenDB = async (token, date) => {
-
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT rt.username, u.tenant_id, reset_token, expires_at FROM reset_password_tokens rt
-        LEFT JOIN users u
-        ON rt.username = u.username
-        WHERE reset_token = ? AND expires_at > ?
-        LIMIT 1;
-        `;
+        const result = await ResetPasswordToken.findOne({
+            where: {
+                reset_token: token,
+                expires_at: {
+                    [Op.gt]: date
+                }
+            },
+            include: [{
+                model: User,
+                attributes: ['tenant_id']
+            }],
+            attributes: ['username', 'reset_token', 'expires_at']
+        });
 
-        const [result] = await conn.query(sql, [token, date]);
-        return result[0];
+        if (!result) {
+            return null;
+        }
+
+        const tokenDetails = {
+            username: result.username,
+            tenant_id: result.User ? result.User.tenant_id : null,
+            reset_token: result.reset_token,
+            expires_at: result.expires_at
+        };
+        return tokenDetails;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.getSubscriptionDetailsDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT id, is_active, subscription_id, payment_customer_id, subscription_start, subscription_end FROM tenants
-        WHERE id = ?
-        LIMIT 1;
-        `;
-
-        const [results] = await conn.query(sql, [tenantId]);
+        const results = await Tenant.findOne({
+            where: { id: tenantId },
+            attributes: ['id', 'is_active', 'subscription_id', 'payment_customer_id', 'subscription_start', 'subscription_end']
+        });
         return results;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateTenantSubscriptionAccess = async (email, status, subscriptionId, paymentCustomerId, subscriptionStartTimestamp, subscriptionEndTimestamp) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        UPDATE tenants
-        SET is_active = ?, subscription_id = ?, payment_customer_id = ?, subscription_start = ?, subscription_end = ?
-        WHERE id = (
-            SELECT tenant_id FROM users
-            WHERE username = ?
-        )
-        `;
+        const user = await User.findOne({
+            where: { username: email },
+            attributes: ['tenant_id']
+        });
 
-        await conn.query(sql, [status, subscriptionId, paymentCustomerId, subscriptionStartTimestamp, subscriptionEndTimestamp, email]);
+        if (!user || !user.tenant_id) {
+            throw new Error('User or tenant_id not found for the given email.');
+        }
+
+        await Tenant.update(
+            {
+                is_active: status,
+                subscription_id: subscriptionId,
+                payment_customer_id: paymentCustomerId,
+                subscription_start: subscriptionStartTimestamp,
+                subscription_end: subscriptionEndTimestamp
+            },
+            {
+                where: { id: user.tenant_id }
+            }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
 exports.updateSubscriptionHistory = async (tenantId, starts_on , expires_on , status) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        await conn.query(`INSERT INTO subscription_history (tenant_id, created_at, starts_on, expires_on , status) VALUES (?, NOW() , ? , ? , ?)`, [tenantId , starts_on , expires_on , status])
-
+        await SubscriptionHistory.create({
+            tenant_id: tenantId,
+            created_at: new Date(),
+            starts_on: starts_on,
+            expires_on: expires_on,
+            status: status
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
-}
+};
 
 exports.getTenantIdFromCustomerEmail = async (customerEmail) => {
-    const conn = await getMySqlPromiseConnection();
-
     try {
-        const sql = `
-        SELECT tenant_id from users where username = ?
-        `;
-
-        const [results] = await conn.query(sql, [customerEmail]);
-        return results[0].tenant_id;
+        const user = await User.findOne({
+            where: { username: customerEmail },
+            attributes: ['tenant_id']
+        });
+        return user ? user.tenant_id : null;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
-}
+};

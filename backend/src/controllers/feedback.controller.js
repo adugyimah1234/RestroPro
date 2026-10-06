@@ -3,11 +3,12 @@ const { getOverallFeedbackSummaryDB, getOverallFeedbackSummaryByQuestionDB, getF
 exports.getFeedbackInit = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
 
     const [overallFeedbackCounting, summary, feedbacks] = await Promise.all([
-      getOverallFeedbackSummaryDB(tenantId),
-      getOverallFeedbackSummaryByQuestionDB(tenantId),
-      getFeedbacksDB('last_7days', null, null, tenantId)
+      getOverallFeedbackSummaryDB(tenantId, branchId),
+      getOverallFeedbackSummaryByQuestionDB(tenantId, branchId),
+      getFeedbacksDB('last_7days', null, null, tenantId, branchId)
     ]);
 
     return res.status(200).json({
@@ -38,6 +39,7 @@ exports.getFeedbackInit = async (req, res) => {
 exports.getFeedbacks = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
 
     const from = req.query.from || null;
     const to = req.query.to || null;
@@ -59,7 +61,7 @@ exports.getFeedbacks = async (req, res) => {
       }
     }
 
-    const result = await getFeedbacksDB(type, from, to, tenantId);
+    const result = await getFeedbacksDB(type, from, to, tenantId, branchId);
 
     if (result.length > 0) {
       return res.status(200).json(result);
@@ -78,6 +80,7 @@ exports.getFeedbacks = async (req, res) => {
 exports.searchFeedbacks = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
     const searchString = req.query.q;
 
     if (!searchString) {
@@ -87,7 +90,7 @@ exports.searchFeedbacks = async (req, res) => {
       });
     }
 
-    const result = await searchFeedbacksDB(searchString, tenantId);
+    const result = await searchFeedbacksDB(searchString, tenantId, branchId);
 
     if (result.length > 0) {
       return res.status(200).json(result);

@@ -18,21 +18,22 @@ const { createInvoiceDB } = require("../services/orders.service");
 exports.getPOSInitData = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
+    const branchId = req.user.branch_id;
 
     const [categories, paymentTypes, printSettings, storeSettings, storeTables, serviceCharge] = await Promise.all([
-      getCategoriesDB(tenantId),
-      getPaymentTypesDB(true, tenantId),
-      getPrintSettingDB(tenantId),
-      getStoreSettingDB(tenantId),
-      getStoreTablesDB(tenantId),
-      getServiceChargeDB(tenantId)
+      getCategoriesDB(tenantId, branchId),
+      getPaymentTypesDB(true, tenantId, branchId),
+      getPrintSettingDB(tenantId, branchId),
+      getStoreSettingDB(tenantId, branchId),
+      getStoreTablesDB(tenantId, branchId),
+      getServiceChargeDB(tenantId, branchId)
     ]);
 
     const [menuItems, addons, variants, recipeItems] = await Promise.all([
-      getAllMenuItemsDB(tenantId),
-      getAllAddonsDB(tenantId),
-      getAllVariantsDB(tenantId),
-      getAllRecipeItemsDB(tenantId)
+      getAllMenuItemsDB(tenantId, branchId),
+      getAllAddonsDB(tenantId, branchId),
+      getAllVariantsDB(tenantId, branchId),
+      getAllRecipeItemsDB(tenantId, branchId)
     ]);
 
     const formattedMenuItems = menuItems.map((item) => {

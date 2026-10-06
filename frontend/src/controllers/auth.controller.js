@@ -17,11 +17,24 @@ export async function signIn(username, password) {
     }
 }
 
-export async function signUp(biz_name, username, password) {
+export async function switchBranch(branch_id) {
+    axios.defaults.withCredentials = true;
+    try {
+        const response = await ApiClient.post(`${API}/auth/switch-branch`, {
+            branch_id
+        });
+
+        return response;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function signUp(biz_name, username, password, phone, location) {
     axios.defaults.withCredentials = true;
     try {
         const response = await axios.post(`${API}/auth/signup`, {
-            biz_name, username, password
+            biz_name, username, password, phone, location
         });
 
         return response;
@@ -69,18 +82,29 @@ export async function resetPassword(token, password) {
     }
 }
 
-export async function getStripeSubscriptionURL(productLookupKey) {
+export async function getPaystackSubscriptionURL() {
     axios.defaults.withCredentials = true;
     try {
-        const response = await ApiClient.post(`${API}/auth/stripe-product-lookup`, {
-            id: productLookupKey
-        });
+        const response = await ApiClient.post(`${API}/auth/paystack-subscription-lookup`);
         return response;
     } catch (error) {
         throw error;
     }
 }
 
+export async function getStripeSubscriptionURL(productLookupKey) {
+    return getPaystackSubscriptionURL();
+}
+
+export async function verifyPaystackTransaction(reference) {
+    axios.defaults.withCredentials = true;
+    try {
+        const response = await ApiClient.get(`${API}/paystack/verify/${reference}`);
+        return response;
+    } catch (error) {
+        throw error;
+    }
+}
 
 const fetcher = (url) => ApiClient.get(url).then((res) => res.data);
 

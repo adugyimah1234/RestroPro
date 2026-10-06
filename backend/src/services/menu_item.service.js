@@ -1,157 +1,166 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { MenuItem, Category, Tax, MenuItemAddon, MenuItemVariant, MenuItemRecipe, InventoryItem, sequelize, Op } = require("../models");
 
-exports.addMenuItemDB = async (title, description, price, netPrice, taxId, categoryId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+const getWhereClause = (baseWhere, branchId) => {
+    const where = { ...baseWhere };
+    if (branchId !== undefined && branchId !== null && branchId !== '') {
+        where.branch_id = branchId;
+    }
+    return where;
+};
+
+exports.addMenuItemDB = async (title, description, price, netPrice, taxId, categoryId, tenantId, branchId) => {
     try {
-
-        const sql = `
-        INSERT INTO menu_items
-        (title, description, price, net_price, tax_id, category, tenant_id)
-        VALUES
-        (?, ?, ?, ?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [title, description, price, netPrice, taxId, categoryId, tenantId]);
-
-        return result.insertId;
+        const menuItemData = {
+            title: title,
+            description: description,
+            price: price,
+            net_price: netPrice,
+            tax_id: taxId,
+            category: categoryId,
+            tenant_id: tenantId,
+        };
+        if (branchId !== undefined && branchId !== null && branchId !== '') {
+            menuItemData.branch_id = branchId;
+        }
+        const menuItem = await MenuItem.create(menuItemData);
+        return menuItem.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.updateMenuItemDB = async (id, title, description, price, netPrice, taxId, categoryId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.updateMenuItemDB = async (id, title, description, price, netPrice, taxId, categoryId, tenantId, branchId) => {
     try {
-
-        const sql = `
-        UPDATE menu_items SET
-        title = ?, description = ?, price = ?, net_price = ?, tax_id = ?, category = ?
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [title, description, price, netPrice, taxId, categoryId, id, tenantId]);
-
+        await MenuItem.update(
+            {
+                title: title,
+                description: description,
+                price: price,
+                net_price: netPrice,
+                tax_id: taxId,
+                category: categoryId,
+            },
+            {
+                where: getWhereClause({ id: id, tenant_id: tenantId }, branchId)
+            }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.updateMenuItemImageDB = async (id, image, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.updateMenuItemImageDB = async (id, image, tenantId, branchId) => {
     try {
-
-        const sql = `
-        UPDATE menu_items SET
-        image = ?
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [image, id, tenantId]);
-
+        await MenuItem.update(
+            { image: image },
+            { where: getWhereClause({ id: id, tenant_id: tenantId }, branchId) }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.deleteMenuItemDB = async (id, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.deleteMenuItemDB = async (id, tenantId, branchId) => {
     try {
-
-        const sql = `
-        DELETE FROM menu_items
-        WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [id, tenantId]);
-
+        await MenuItem.destroy({
+            where: getWhereClause({ id: id, tenant_id: tenantId }, branchId)
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.changeMenuItemVisibilityDB = async (id, isEnabled, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.changeMenuItemVisibilityDB = async (id, isEnabled, tenantId, branchId) => {
     try {
-
-        const sql = `
-         UPDATE menu_items SET
-         is_enabled = ?
-         WHERE id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [isEnabled, id, tenantId]);
-
+        await MenuItem.update(
+            { is_enabled: isEnabled },
+            { where: getWhereClause({ id: id, tenant_id: tenantId }, branchId) }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.getAllMenuItemsDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getAllMenuItemsDB = async (tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT
-        i.id, i.title, i.description, price, net_price, tax_id, t.title AS tax_title, t.rate AS tax_rate, t.type AS tax_type, category as category_id, c.title AS category_title, image, i.is_enabled
-        FROM menu_items i
-        LEFT JOIN taxes t
-        ON i.tax_id = t.id
-        LEFT JOIN categories c
-        ON i.category = c.id
-        WHERE i.tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result;
+        const menuItems = await MenuItem.findAll({
+            where: getWhereClause({ tenant_id: tenantId }, branchId),
+            include: [
+                {
+                    model: Tax,
+                    as: 'Tax',
+                    attributes: [['title', 'tax_title'], ['rate', 'tax_rate'], ['type', 'tax_type']],
+                    required: false // LEFT JOIN
+                },
+                {
+                    model: Category,
+                    as: 'Category',
+                    attributes: [['title', 'category_title']],
+                    required: false // LEFT JOIN
+                }
+            ],
+            attributes: [
+                'id',
+                'title',
+                'description',
+                'price',
+                'net_price',
+                'tax_id',
+                ['category', 'category_id'],
+                'image',
+                'is_enabled'
+            ],
+        });
+        return menuItems.map(item => item.toJSON());
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
-exports.getMenuItemDB = async (id, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getMenuItemDB = async (id, tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT
-        i.id, i.title, i.description, price, net_price, tax_id, t.title AS tax_title, t.rate AS tax_rate, t.type AS tax_type, category as category_id, c.title AS category_title, image, i.is_enabled
-        FROM menu_items i
-        LEFT JOIN taxes t
-        ON i.tax_id = t.id
-        LEFT JOIN categories c
-        ON i.category = c.id
-        WHERE i.id = ? AND i.tenant_id = ?
-        `;
-
-        const [result] = await conn.query(sql, [id, tenantId]);
-        return result[0];
+        const menuItem = await MenuItem.findOne({
+            where: getWhereClause({ id: id, tenant_id: tenantId }, branchId),
+            include: [
+                {
+                    model: Tax,
+                    as: 'Tax',
+                    attributes: [['title', 'tax_title'], ['rate', 'tax_rate'], ['type', 'tax_type']],
+                    required: false // LEFT JOIN
+                },
+                {
+                    model: Category,
+                    as: 'Category',
+                    attributes: [['title', 'category_title']],
+                    required: false // LEFT JOIN
+                }
+            ],
+            attributes: [
+                'id',
+                'title',
+                'description',
+                'price',
+                'net_price',
+                'tax_id',
+                ['category', 'category_id'],
+                'image',
+                'is_enabled'
+            ],
+        });
+        return menuItem ? menuItem.get({ plain: true }) : null;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
@@ -161,24 +170,22 @@ exports.getMenuItemDB = async (id, tenantId) => {
  * @param {number} price Additonal Price for addon, Put 0 / null to make addon as free option
  * @returns {Promise<number>}
  *  */
-exports.addMenuItemAddonDB = async (itemId, title, price, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.addMenuItemAddonDB = async (itemId, title, price, tenantId, branchId) => {
     try {
-
-        const sql = `
-        INSERT INTO menu_item_addons
-        (item_id, title, price, tenant_id)
-        VALUES
-        (?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [itemId, title, price, tenantId]);
-        return result.insertId;
+        const addonData = {
+            item_id: itemId,
+            title: title,
+            price: price,
+            tenant_id: tenantId
+        };
+        if (branchId !== undefined && branchId !== null && branchId !== '') {
+            addonData.branch_id = branchId;
+        }
+        const menuItemAddon = await MenuItemAddon.create(addonData);
+        return menuItemAddon.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
@@ -189,24 +196,16 @@ exports.addMenuItemAddonDB = async (itemId, title, price, tenantId) => {
  * @param {number} price Additonal Price for addon, Put 0 / null to make addon as free option
  * @returns {Promise<void>}
  *  */
-exports.updateMenuItemAddonDB = async (itemId, addonId, title, price, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.updateMenuItemAddonDB = async (itemId, addonId, title, price, tenantId, branchId) => {
     try {
-
-        const sql = `
-        UPDATE menu_item_addons
-        SET
-        title = ?, price = ?
-        WHERE id = ? AND item_id = ? AND tenant_id = ?
-        `;
-
-        await conn.query(sql, [title, price, addonId, itemId, tenantId]);
+        await MenuItemAddon.update(
+            { title: title, price: price },
+            { where: getWhereClause({ id: addonId, item_id: itemId, tenant_id: tenantId }, branchId) }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
@@ -215,23 +214,15 @@ exports.updateMenuItemAddonDB = async (itemId, addonId, title, price, tenantId) 
  * @param {number} addonId Addon ID
  * @returns {Promise<void>}
  *  */
-exports.deleteMenuItemAddonDB = async (itemId, addonId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.deleteMenuItemAddonDB = async (itemId, addonId, tenantId, branchId) => {
     try {
-
-        const sql = `
-        DELETE FROM menu_item_addons
-        WHERE id = ? AND item_id = ? AND tenant_id = ?;
-        `;
-
-        await conn.query(sql, [addonId, itemId, tenantId]);
-
+        await MenuItemAddon.destroy({
+            where: getWhereClause({ id: addonId, item_id: itemId, tenant_id: tenantId }, branchId)
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
@@ -240,43 +231,29 @@ exports.deleteMenuItemAddonDB = async (itemId, addonId, tenantId) => {
  * @param {number} addonId Addon ID
  * @returns {Promise<Array>}
  *  */
-exports.getMenuItemAddonsDB = async (itemId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getMenuItemAddonsDB = async (itemId, tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT id, item_id, title, price FROM menu_item_addons
-        WHERE item_id = ? AND tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [itemId, tenantId]);
-
-        return result;
+        const menuItemAddons = await MenuItemAddon.findAll({
+            where: getWhereClause({ item_id: itemId, tenant_id: tenantId }, branchId),
+            attributes: ['id', 'item_id', 'title', 'price']
+        });
+        return menuItemAddons.map(addon => addon.get({ plain: true }));
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.getAllAddonsDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getAllAddonsDB = async (tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT id, item_id, title, price FROM menu_item_addons
-        WHERE tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-
-        return result;
+        const allAddons = await MenuItemAddon.findAll({
+            where: getWhereClause({ tenant_id: tenantId }, branchId),
+            attributes: ['id', 'item_id', 'title', 'price']
+        });
+        return allAddons.map(addon => addon.get({ plain: true }));
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
@@ -286,306 +263,265 @@ exports.getAllAddonsDB = async (tenantId) => {
  * @param {number} price Additonal Price for Variant, Put 0 / null to make Variant as free option
  * @returns {Promise<number>}
  *  */
-exports.addMenuItemVariantDB = async (itemId, title, price, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.addMenuItemVariantDB = async (itemId, title, price, tenantId, branchId) => {
     try {
-
-        const sql = `
-        INSERT INTO menu_item_variants
-        (item_id, title, price, tenant_id)
-        VALUES
-        (?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [itemId, title, price, tenantId]);
-
-        return result.insertId;
+        const variantData = {
+            item_id: itemId,
+            title: title,
+            price: price,
+            tenant_id: tenantId
+        };
+        if (branchId !== undefined && branchId !== null && branchId !== '') {
+            variantData.branch_id = branchId;
+        }
+        const menuItemVariant = await MenuItemVariant.create(variantData);
+        return menuItemVariant.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.updateMenuItemVariantDB = async (itemId, variantId, title, price, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.updateMenuItemVariantDB = async (itemId, variantId, title, price, tenantId, branchId) => {
     try {
-
-        const sql = `
-        UPDATE menu_item_variants
-        SET
-        title = ?, price = ?
-        WHERE item_id = ? AND id = ? AND tenant_id = ?
-        `;
-
-        await conn.query(sql, [title, price, itemId, variantId, tenantId]);
+        await MenuItemVariant.update(
+            { title: title, price: price },
+            { where: getWhereClause({ id: variantId, item_id: itemId, tenant_id: tenantId }, branchId) }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.deleteMenuItemVariantDB = async (itemId, variantId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.deleteMenuItemVariantDB = async (itemId, variantId, tenantId, branchId) => {
     try {
-
-        const sql = `
-        DELETE FROM menu_item_variants
-        WHERE item_id = ? AND id = ? AND tenant_id = ?
-        `;
-
-        await conn.query(sql, [itemId, variantId, tenantId]);
-
+        await MenuItemVariant.destroy({
+            where: getWhereClause({ id: variantId, item_id: itemId, tenant_id: tenantId }, branchId)
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.getMenuItemVariantsDB = async (itemId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getMenuItemVariantsDB = async (itemId, tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT id, item_id, title, price FROM menu_item_variants
-        WHERE item_id = ? AND tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [itemId, tenantId]);
-
-        return result;
+        const menuItemVariants = await MenuItemVariant.findAll({
+            where: getWhereClause({ item_id: itemId, tenant_id: tenantId }, branchId),
+            attributes: ['id', 'item_id', 'title', 'price']
+        });
+        return menuItemVariants.map(variant => variant.get({ plain: true }));
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
-exports.getAllVariantsDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+
+exports.getAllVariantsDB = async (tenantId, branchId) => {
     try {
-
-        const sql = `
-        SELECT id, item_id, title, price FROM menu_item_variants
-        WHERE tenant_id = ?;
-        `;
-
-        const [result] = await conn.query(sql, [tenantId]);
-        return result;
+        const allVariants = await MenuItemVariant.findAll({
+            where: getWhereClause({ tenant_id: tenantId }, branchId),
+            attributes: ['id', 'item_id', 'title', 'price']
+        });
+        return allVariants.map(variant => variant.get({ plain: true }));
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-
-exports.addRecipeItemDB = async (menuItemId, variantId, addonId, ingredientId, quantity, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.addRecipeItemDB = async (menuItemId, variantId, addonId, ingredientId, quantity, tenantId, branchId) => {
     try {
-        const sql = `
-        INSERT INTO menu_item_recipes
-        (menu_item_id, variant_id, addon_id, inventory_item_id, quantity, tenant_id)
-        VALUES
-        (?, ?, ?, ?, ?, ?);
-        `;
-
-        const [result] = await conn.query(sql, [menuItemId, variantId, addonId, ingredientId, quantity, tenantId]);
-
-        return result.insertId;
+        const recipeData = {
+            menu_item_id: menuItemId,
+            variant_id: variantId,
+            addon_id: addonId,
+            inventory_item_id: ingredientId,
+            quantity: quantity,
+            tenant_id: tenantId
+        };
+        if (branchId !== undefined && branchId !== null && branchId !== '') {
+            recipeData.branch_id = branchId;
+        }
+        const recipeItem = await MenuItemRecipe.create(recipeData);
+        return recipeItem.id;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.updateRecipeItemDB = async (recipeItemId, menuItemId, variantId, addonId, ingredientId, quantity, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.updateRecipeItemDB = async (recipeItemId, menuItemId, variantId, addonId, ingredientId, quantity, tenantId, branchId) => {
     try {
-        const sql = `
-        UPDATE menu_item_recipes
-        SET
-          menu_item_id = ?,
-          variant_id = ?,
-          addon_id = ?,
-          inventory_item_id = ?,
-          quantity = ?
-        WHERE id = ? AND tenant_id = ?;
-      `;
-
-        const [result] = await conn.query(sql, [
-            menuItemId,
-            variantId,
-            addonId,
-            ingredientId,
-            quantity,
-            recipeItemId,
-            tenantId
-        ]);
-
+        await MenuItemRecipe.update(
+            {
+                menu_item_id: menuItemId,
+                variant_id: variantId,
+                addon_id: addonId,
+                inventory_item_id: ingredientId,
+                quantity: quantity,
+            },
+            {
+                where: getWhereClause({ id: recipeItemId, tenant_id: tenantId }, branchId)
+            }
+        );
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.getRecipeItemsDB = async (menuItemId, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getRecipeItemsDB = async (menuItemId, tenantId, branchId) => {
     try {
-        const sql = `
-        SELECT
-            mir.id,
-            mir.menu_item_id,
-            mir.variant_id,
-            mir.addon_id,
-            mir.inventory_item_id,
-            mi.title AS menu_item_title,
-            v.title AS variant_title,
-            a.title AS addon_title,
-            ii.title AS ingredient_title,
-            ii.unit,
-            mir.quantity
-        FROM
-            menu_item_recipes mir
-        LEFT JOIN
-            menu_items mi ON mir.menu_item_id = mi.id
-        LEFT JOIN
-            menu_item_variants v ON mir.variant_id = v.id
-        LEFT JOIN
-            menu_item_addons a ON mir.addon_id = a.id
-        LEFT JOIN
-            inventory_items ii ON mir.inventory_item_id = ii.id
-        WHERE
-            mir.menu_item_id = ? AND mir.tenant_id = ?
-        `;
-
-        const [rows] = await conn.query(sql, [menuItemId, tenantId]);
-        return rows;
+        const recipeItems = await MenuItemRecipe.findAll({
+            where: getWhereClause({ menu_item_id: menuItemId, tenant_id: tenantId }, branchId),
+            include: [
+                {
+                    model: MenuItem,
+                    as: 'MenuItem',
+                    attributes: [['title', 'menu_item_title']],
+                    required: false
+                },
+                {
+                    model: MenuItemVariant,
+                    as: 'MenuItemVariant',
+                    attributes: [['title', 'variant_title']],
+                    required: false
+                },
+                {
+                    model: MenuItemAddon,
+                    as: 'MenuItemAddon',
+                    attributes: [['title', 'addon_title']],
+                    required: false
+                },
+                {
+                    model: InventoryItem,
+                    as: 'Ingredient',
+                    attributes: [['title', 'ingredient_title'], 'unit'],
+                    required: false
+                }
+            ],
+            attributes: [
+                'id',
+                'menu_item_id',
+                'variant_id',
+                'addon_id',
+                'inventory_item_id',
+                'quantity'
+            ],
+        });
+        return recipeItems.map(item => item.get({ plain: true }));
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.getAllRecipeItemsDB = async (tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.getAllRecipeItemsDB = async (tenantId, branchId) => {
     try {
-        const sql = `
-        SELECT
-            mir.id,
-            mir.menu_item_id,
-            mir.variant_id,
-            mir.addon_id,
-            mir.inventory_item_id,
-            mi.title AS menu_item_title,
-            v.title AS variant_title,
-            a.title AS addon_title,
-            ii.title AS ingredient_title,
-            ii.unit,
-            ii.quantity as current_quantity,
-            ii.min_quantity_threshold,
-            mir.quantity as recipe_quantity
-        FROM
-            menu_item_recipes mir
-        LEFT JOIN
-            menu_items mi ON mir.menu_item_id = mi.id
-        LEFT JOIN
-            menu_item_variants v ON mir.variant_id = v.id
-        LEFT JOIN
-            menu_item_addons a ON mir.addon_id = a.id
-        LEFT JOIN
-            inventory_items ii ON mir.inventory_item_id = ii.id
-        WHERE
-            mir.tenant_id = ?
-        `;
-
-        const [rows] = await conn.query(sql, [tenantId]);
-        return rows;
+        const allRecipeItems = await MenuItemRecipe.findAll({
+            where: getWhereClause({ tenant_id: tenantId }, branchId),
+            include: [
+                {
+                    model: MenuItem,
+                    as: 'MenuItem',
+                    attributes: [['title', 'menu_item_title']],
+                    required: false
+                },
+                {
+                    model: MenuItemVariant,
+                    as: 'MenuItemVariant',
+                    attributes: [['title', 'variant_title']],
+                    required: false
+                },
+                {
+                    model: MenuItemAddon,
+                    as: 'MenuItemAddon',
+                    attributes: [['title', 'addon_title']],
+                    required: false
+                },
+                {
+                    model: InventoryItem,
+                    as: 'Ingredient',
+                    attributes: [
+                        ['title', 'ingredient_title'],
+                        'unit',
+                        ['quantity', 'current_quantity'],
+                        'min_quantity_threshold'
+                    ],
+                    required: false
+                }
+            ],
+            attributes: [
+                'id',
+                'menu_item_id',
+                'variant_id',
+                'addon_id',
+                'inventory_item_id',
+                ['quantity', 'recipe_quantity']
+            ],
+        });
+        return allRecipeItems.map(item => item.get({ plain: true }));
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.deleteRecipeItemDB = async (itemId, recipeItemId, variant, addon, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
+exports.deleteRecipeItemDB = async (itemId, recipeItemId, variant, addon, tenantId, branchId) => {
     try {
-        let sql = `
-        DELETE FROM menu_item_recipes
-        WHERE menu_item_id = ?
-        AND id = ?
-        AND tenant_id = ?
-      `;
-
-        const params = [itemId, recipeItemId, tenantId];
+        let whereCondition = getWhereClause({
+            menu_item_id: itemId,
+            id: recipeItemId,
+            tenant_id: tenantId
+        }, branchId);
 
         if (variant) {
-            sql += ` AND variant_id = ?`;
-            params.push(variant);
+            whereCondition.variant_id = variant;
         }
 
         if (addon) {
-            sql += ` AND addon_id = ?`;
-            params.push(addon);
+            whereCondition.addon_id = addon;
         }
 
-        await conn.query(sql, params);
+        await MenuItemRecipe.destroy({
+            where: whereCondition
+        });
         return;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };
 
-exports.bulkAddMenuItemsDB = async (menuItems) => {
-    const conn = await getMySqlPromiseConnection();
+exports.bulkAddMenuItemsDB = async (menuItems, branchId) => {
     try {
         if (!menuItems || menuItems.length === 0) {
             return 0;
         }
 
-        const placeholders = menuItems.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ');
-        const values = menuItems.flatMap(item => [
-            item.title,
-            item.description,
-            item.price,
-            item.netPrice,
-            item.taxId,
-            item.categoryId,
-            item.tenantId
-        ]);
-
-        const sql = `
-        INSERT INTO menu_items
-        (title, description, price, net_price, tax_id, category, tenant_id)
-        VALUES ${placeholders};
-        `;
-
-        const [result] = await conn.query(sql, values);
-        return result.affectedRows;
+        const createdItems = await MenuItem.bulkCreate(menuItems.map(item => {
+            const row = {
+                title: item.title,
+                description: item.description,
+                price: item.price,
+                net_price: item.netPrice,
+                tax_id: item.taxId,
+                category: item.categoryId,
+                tenant_id: item.tenantId
+            };
+            if (branchId !== undefined && branchId !== null && branchId !== '') {
+                row.branch_id = branchId;
+            }
+            return row;
+        }));
+        return createdItems.length;
     } catch (error) {
         console.error(error);
         throw error;
-    } finally {
-        conn.release();
     }
 };

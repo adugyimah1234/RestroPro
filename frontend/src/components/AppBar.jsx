@@ -7,6 +7,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconCommand,
+  IconCompass,
   IconDeviceTablet,
   IconDevices,
   IconFileInvoice,
@@ -37,6 +38,7 @@ import AppBarDropdown from "./AppBarDropdown";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../contexts/ThemeContext";
 import { useStoreSettings } from "../controllers/settings.controller"; // Import useStoreSettings
+import BranchSelector from "./BranchSelector";
 
 export default function AppBar() {
   const { t } = useTranslation();
@@ -209,6 +211,7 @@ export default function AppBar() {
   return (
     <>
       <div className="flex items-center justify-between px-4 py-3 border-b w-full sticky top-0 backdrop-blur-md z-[9999] border-restro-border-green">
+       <div className="flex items-center gap-4">
         {/* search */}
         <button
           onClick={btnShowSearchModal}
@@ -228,7 +231,10 @@ export default function AppBar() {
           </div>
         </button>
         {/* search */}
+        <BranchSelector />
+        </div>
 
+        <div className="flex items-center gap-4">
         {/* Public Order Link */}
         {storeSettingsData?.tenantSlug || storeSettingsData?.uniqueQRCode ? (
             <a
@@ -242,9 +248,21 @@ export default function AppBar() {
         ) : null}
         {/* Public Order Link */}
 
+        {/* Staff Tour Guide */}
+        <button
+          onClick={() => document.getElementById('modal-staff-tour')?.showModal()}
+          className="rounded-full flex items-center px-3 py-1.5 gap-1.5 bg-restro-green-light text-restro-green-dark hover:bg-restro-button-hover transition active:scale-95 text-xs md:text-sm font-medium"
+          title={t("tour.title", "Staff Tour Guide")}
+        >
+          <IconCompass stroke={iconStroke} size={18} />
+          <span className="hidden md:inline">{t("tour.title", "Staff Tour")}</span>
+        </button>
+        {/* Staff Tour Guide */}
+
         {/* profile */}
         <AppBarDropdown />
         {/* profile */}
+        </div>
       </div>
 
       <dialog id="search-modal" className="modal">

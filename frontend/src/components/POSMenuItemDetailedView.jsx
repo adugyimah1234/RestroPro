@@ -81,8 +81,8 @@ const POSMenuItemDetailedView = ({ menuItems, selectedCategory, categories, sear
                 <div className="p-2 flex flex-col justify-between gap-2 w-full">
                   <div>
                     <div className='flex justify-between gap-4 mr-1'>
-                      <p className='line-clamp-1 text-sm text-ellipsis font-semibold w-[75%]'>{title}</p>
-                      <p className='text-restro-green font-bold'>{currency}{price}</p>
+                      <p className='line-clamp-1 text-sm text-ellipsis font-semibold w-[70%]'>{title}</p>
+                      <p className='text-restro-green font-bold whitespace-nowrap'>{currency}{price != null && !isNaN(Number(price)) ? Number(price).toFixed(2) : '0.00'}</p>
                     </div>
                     <p className='line-clamp-2 text-ellipsis text-xs text-gray-500 mt-0.5'>{description}</p>
                   </div>

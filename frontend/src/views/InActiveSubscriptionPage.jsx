@@ -1,11 +1,11 @@
 import Page from "../components/Page";
 import Logo from "../assets/logo.svg";
 import LogoDark from "../assets/LogoDark.svg"
-import { iconStroke, stripeProductSubscriptionId, subscriptionPrice } from '../config/config';
+import { iconStroke, subscriptionPrice } from '../config/config';
 import React from "react";
-import { getStripeSubscriptionURL, signOut } from "../controllers/auth.controller";
+import { getPaystackSubscriptionURL } from "../controllers/auth.controller";
 import { toast } from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { getUserDetailsInLocalStorage } from "../helpers/UserDetails";
 import AppBarDropdown from "../components/AppBarDropdown";
 import { useTranslation } from "react-i18next";
@@ -19,12 +19,11 @@ export default function InActiveSubscriptionPage() {
   const btnSubscribe = async () => {
     toast.loading(t("loading_message"));
     try {
-      const res = await getStripeSubscriptionURL(stripeProductSubscriptionId);
+      const res = await getPaystackSubscriptionURL();
       toast.dismiss();
 
-      if (res.status == 200) {
-        const data = res.data;
-        window.location.href = data.url;
+      if (res.status == 200 && res.data?.url) {
+        window.location.href = res.data.url;
       }
     } catch (error) {
       const message = error?.response?.data?.message || t("error_message");
@@ -55,7 +54,7 @@ export default function InActiveSubscriptionPage() {
                 <li>{t("inactive_subscription.features.live_kitchen_orders")}</li>
               </ul>
               <button onClick={btnSubscribe} className="rounded-full bg-restro-green text-white px-4 py-3 transition active:scale-95 hover:bg-restro-green-button-hover mt-6">
-                {t("inactive_subscription.subscribe_button")}
+                Pay with Paystack
               </button>
             </div>
           </div>
