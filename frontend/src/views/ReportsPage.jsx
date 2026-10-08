@@ -1,12 +1,13 @@
 import React, { useRef, useState } from "react";
 import Page from "../components/Page";
-import { IconCarrot, IconDownload, IconFilter } from "@tabler/icons-react";
+import { IconCalendarStats, IconCarrot, IconDownload, IconFilter } from "@tabler/icons-react";
 import { iconStroke } from "../config/config";
 import { useReports } from "../controllers/reports.controller"
 import { CURRENCIES } from "../config/currencies.config";
 import ReportPaymentTypePieChart from "../components/ReportPaymentTypePieChart";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../contexts/ThemeContext";
+import AccountabilityDashboard from "../components/AccountabilityDashboard";
 
 export default function ReportsPage() {
   const { t } = useTranslation();
@@ -46,6 +47,7 @@ export default function ReportsPage() {
 
   if(isLoading) {
     return <Page>
+      <AccountabilityDashboard />
       {t("reports.loading_message")}
     </Page>
   }
@@ -53,6 +55,7 @@ export default function ReportsPage() {
   if(error) {
     console.error(error);
     return <Page>
+      <AccountabilityDashboard />
       {t("reports.error_message")}
     </Page>;
   }
@@ -138,32 +141,43 @@ export default function ReportsPage() {
 
   return (
     <Page>
-      <div className="flex items-center justify-between">
-        <h3 className="text-2xl">{t("reports.title")}</h3>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-2xl font-semibold tracking-tight">{t("reports.title")}</h3>
+          <p className="mt-1 text-sm text-gray-500">A practical view of sales, customers, and business accountability.</p>
+        </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => document.getElementById("filter-dialog").showModal()}
-            className="btn btn-sm rounded-full text-restro-text bg-restro-bg-gray border-none hover:bg-restro-button-hover"
+            className="btn btn-sm rounded-full border border-restro-border-green bg-restro-card-bg text-restro-text hover:bg-restro-button-hover"
           >
             <IconFilter stroke={iconStroke} /> {t("reports.filters_button")}
           </button>
           <button
             onClick={btnExportCSV}
-            className="btn btn-sm rounded-full text-restro-text bg-restro-bg-gray hover:bg-restro-button-hover"
+            className="btn btn-sm rounded-full border border-restro-border-green bg-restro-card-bg text-restro-text hover:bg-restro-button-hover"
           >
             <IconDownload stroke={iconStroke} /> {t("reports.download_button")}
           </button>
         </div>
       </div>
 
-      <h3 className="mt-6 mb-4 text-base">{t("reports.showing_data_for", { filter: filters.find(f=>f.key==state.filter).value })}</h3>
+      <AccountabilityDashboard />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+      <div className="mt-8 mb-4 flex flex-wrap items-center gap-2">
+        <span className="rounded-lg bg-restro-green/10 p-2 text-restro-green"><IconCalendarStats size={18} stroke={iconStroke} /></span>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-restro-green">Performance overview</p>
+          <h3 className="text-base font-semibold">{t("reports.showing_data_for", { filter: filters.find(f=>f.key==state.filter).value })}</h3>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
          {/* popular items */}
-         <div className='row-span-3 rounded-3xl h-96 overflow-y-auto border border-restro-border-green'>
-          <div className='py-5 px-6 backdrop-blur rounded-t-3xl sticky top-0'>
-            <h3 className='font-bold'>{t("reports.top_selling_items")}</h3>
+         <div className='row-span-3 h-96 overflow-y-auto rounded-3xl border border-restro-border-green bg-restro-card-bg shadow-sm'>
+          <div className='sticky top-0 rounded-t-3xl border-b border-restro-border-green bg-restro-card-bg/95 px-6 py-5 backdrop-blur'>
+            <h3 className='font-semibold'>{t("reports.top_selling_items")}</h3>
           </div>
 
           {topSellingItems?.length == 0 && <div className='w-full flex items-center justify-center flex-col px-8 2xl:px-10'>
@@ -181,7 +195,7 @@ export default function ReportsPage() {
             {/* item */}
             {topSellingItems.map((item,i)=>{
               return <div className='mb-4 flex items-center gap-2 w-full' key={i}>
-                <div className='w-12 h-12 flex items-center justify-center text-gray-500 dark:text-white rounded-lg bg-restro-bg-gray border border-restro-border-green'>
+                <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-restro-border-green bg-restro-bg-gray text-restro-green'>
                   <IconCarrot stroke={iconStroke} />
                 </div>
 
@@ -200,72 +214,72 @@ export default function ReportsPage() {
         {/* popular items */}
 
         {/* items sold */}
-        <div className='rounded-3xl h-28 py-5 px-6 border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.orders")}</h3>
-          <p className="mt-2 text-4xl">{ordersCount || 0}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.orders")}</h3>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{ordersCount || 0}</p>
         </div>
         {/* items sold */}
 
         {/* avg. order value */}
-        <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.avg_order_value")}</h3>
-          <p className="mt-2 text-4xl">{currency}{Number(averageOrderValue).toFixed(2) || 0}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.avg_order_value")}</h3>
+          <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{currency}{Number(averageOrderValue).toFixed(2) || 0}</p>
         </div>
         {/* avg. order value */}
 
         {/* total customers */}
-        <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.total_customers")}</h3>
-          <p className="mt-2 text-4xl">{totalCustomers}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.total_customers")}</h3>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{totalCustomers}</p>
         </div>
         {/* total customers */}
 
         {/* New customers */}
-        <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>
-            <h3 className="font-bold">{t("reports.new_customers")}</h3>
-          <p className="mt-2 text-4xl">{newCustomers}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.new_customers")}</h3>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{newCustomers}</p>
         </div>
         {/* New customers */}
 
         {/* repeat customers */}
-         <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.repeat_customers")}</h3>
-          <p className="mt-2 text-4xl">{repeatedCustomers}</p>
+         <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.repeat_customers")}</h3>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{repeatedCustomers}</p>
         </div>
         {/* repeat customers */}
 
         {/* revenue */}
-        <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>          
-          <h3 className="font-bold">{t("reports.revenue")}</h3>
-          <p className="mt-2 text-4xl">{currency}{revenueTotal}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.revenue")}</h3>
+          <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{currency}{revenueTotal}</p>
         </div>
         {/* revenue */}
 
         {/* payment total by payment types */}
-        <div className='row-span-3 py-5 px-6 rounded-3xl border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.payments_by_methods")}</h3>
+        <div className='row-span-3 rounded-2xl border border-restro-border-green bg-restro-card-bg p-5 shadow-sm'>
+          <h3 className="font-semibold">{t("reports.payments_by_methods")}</h3>
           <ReportPaymentTypePieChart paymentTypes={totalPaymentsByPaymentTypes} />
         </div>
         {/* payment total by payment types */}
 
         {/* net sales */}
-        <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.net_sales")}</h3>
-          <p className="mt-2 text-4xl">{currency}{netRevenue}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.net_sales")}</h3>
+          <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{currency}{netRevenue}</p>
         </div>
         {/* net sales */}
 
         {/* tax */}
-        <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.tax")}</h3>
-          <p className="mt-2 text-4xl">{currency}{taxTotal}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.tax")}</h3>
+          <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{currency}{taxTotal}</p>
         </div>
         {/* tax */}
 
         {/* Service Charge */}
-        <div className='h-28 py-5 px-6 rounded-3xl border border-restro-border-green'>
-          <h3 className="font-bold">{t("reports.service_charge_total")}</h3>
-          <p className="mt-2 text-4xl">{currency}{serviceChargeTotal}</p>
+        <div className='h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition hover:shadow-md'>
+          <h3 className="text-sm font-medium text-gray-500">{t("reports.service_charge_total")}</h3>
+          <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{currency}{serviceChargeTotal}</p>
         </div>
         {/* Service Charge */}
         

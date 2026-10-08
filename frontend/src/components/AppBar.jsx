@@ -210,7 +210,7 @@ export default function AppBar() {
 
   return (
     <>
-      <div className="flex items-center justify-between px-4 py-3 border-b w-full sticky top-0 backdrop-blur-md z-[9999] border-restro-border-green">
+      <div className="relative flex w-full items-center justify-between border-b border-restro-border-green bg-restro-card-bg px-4 py-3">
        <div className="flex items-center gap-4">
         {/* search */}
         <button

@@ -35,14 +35,19 @@ export default function DashboardPage() {
 
   return (
     <Page>
-      <h3 className="text-2xl">{t('dashboard.title')}</h3>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-restro-green">Restaurant overview</p>
+          <h3 className="mt-1 text-2xl font-semibold tracking-tight">{t('dashboard.title')}</h3>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+      <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
 
         {/* reservation */}
-        <div className="group border rounded-3xl h-96 overflow-y-auto border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 animate-fadeIn" style={{ animationDelay: '0.1s' }}>
-          <div className= "py-5 px-6 border-b-0 backdrop-blur rounded-t-3xl sticky top-0">
-            <Link to="/dashboard/reservation" className='font-bold'>{t('dashboard.reservations')}</Link>
+        <div className="group h-96 overflow-y-auto rounded-3xl border border-restro-border-green bg-restro-card-bg shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-md animate-fadeIn" style={{ animationDelay: '0.1s' }}>
+          <div className= "sticky top-0 rounded-t-3xl border-b border-restro-border-green bg-restro-card-bg/95 px-6 py-5 backdrop-blur">
+            <Link to="/dashboard/reservation" className='font-semibold'>{t('dashboard.reservations')}</Link>
           </div>
 
           {reservations?.length == 0 && <div className='w-full px-8 2xl:px-10 pt-2'>
@@ -101,9 +106,9 @@ export default function DashboardPage() {
         {/* reservation */}
 
         {/* popular items */}
-        <div className="group border rounded-3xl h-96 overflow-y-auto border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 animate-fadeIn" style={{ animationDelay: '0.2s' }}>
-          <div className="py-5 px-6 border-b-0 backdrop-blur rounded-t-3xl sticky top-0">
-            <h3 className='font-bold'>{t('dashboard.top_selling_items')}</h3>
+        <div className="group h-96 overflow-y-auto rounded-3xl border border-restro-border-green bg-restro-card-bg shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-md animate-fadeIn" style={{ animationDelay: '0.2s' }}>
+          <div className="sticky top-0 rounded-t-3xl border-b border-restro-border-green bg-restro-card-bg/95 px-6 py-5 backdrop-blur">
+            <h3 className='font-semibold'>{t('dashboard.top_selling_items')}</h3>
           </div>
 
           {topSellingItems?.length == 0 && <div className='w-full px-8 2xl:px-10'>
@@ -121,7 +126,7 @@ export default function DashboardPage() {
             {/* item */}
             {topSellingItems.map((item,i)=>{
               return <div className='mb-4 flex items-center gap-2 w-full' key={i}>
-                <div className='flex items-center justify-center w-12 h-12 rounded-lg bg-restro-bg-gray text-restro-text'>
+                <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-restro-bg-gray text-restro-green'>
                   <IconCarrot stroke={iconStroke} />
                 </div>
 
@@ -142,30 +147,30 @@ export default function DashboardPage() {
 
         <div className="flex flex-col gap-6">
           {/* items sold */}
-        <div className="group border rounded-3xl h-28 py-5 px-6 border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 backdrop-blur animate-fadeIn" style={{ animationDelay: '0.3s' }}>
-          <h3 className="font-bold">{t('dashboard.orders')}</h3>
-          <p className="mt-2 text-4xl">{ordersCount||0}</p>
+        <div className="group h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-md animate-fadeIn" style={{ animationDelay: '0.3s' }}>
+          <h3 className="text-sm font-medium text-gray-500">{t('dashboard.orders')}</h3>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{ordersCount||0}</p>
         </div>
         {/* items sold */}
 
         {/* new customers */}
-        <div className="group border rounded-3xl h-28 py-5 px-6 border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 backdrop-blur animate-fadeIn" style={{ animationDelay: '0.4s' }}>
-          <h3 className="font-bold">{t('dashboard.new_customers')}</h3>
-          <p className="mt-2 text-4xl">{newCustomerCount||0}</p>
+        <div className="group h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-md animate-fadeIn" style={{ animationDelay: '0.4s' }}>
+          <h3 className="text-sm font-medium text-gray-500">{t('dashboard.new_customers')}</h3>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{newCustomerCount||0}</p>
         </div>
         {/* new customers */}
 
         {/* repeated customers */}
-        <div className="group border rounded-3xl h-28 py-5 px-6 border-restro-border-green shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 backdrop-blur animate-fadeIn" style={{ animationDelay: '0.5s' }}>
-          <h3 className="font-bold">{t('dashboard.repeat_customers')}</h3>
-          <p className="mt-2 text-4xl">{repeatedCustomerCount||0}</p>
+        <div className="group h-28 rounded-2xl border border-restro-border-green bg-restro-card-bg px-5 py-4 shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-md animate-fadeIn" style={{ animationDelay: '0.5s' }}>
+          <h3 className="text-sm font-medium text-gray-500">{t('dashboard.repeat_customers')}</h3>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{repeatedCustomerCount||0}</p>
         </div>
         {/* repeated customers */}
         </div>
 
         {/* banner: view more in reports */}
-        <Link to="/dashboard/reports" className = "block rounded-3xl py-5 px-6 transition active:scale-95 border bg-[url(/assets/circle_illustration.svg)] bg-no-repeat bg-right-bottom border-restro-border-green hover:bg-restro-button-hover shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1 animate-fadeIn" style={{ animationDelay: '0.6s' }}>
-          <p>{t('dashboard.view_more_reports')} <IconChevronRight stroke={iconStroke}/></p>
+        <Link to="/dashboard/reports" className = "block rounded-3xl border border-restro-border-green bg-restro-card-bg bg-[url(/assets/circle_illustration.svg)] bg-no-repeat bg-right-bottom px-6 py-5 shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-restro-button-hover hover:shadow-md active:scale-[0.99] animate-fadeIn" style={{ animationDelay: '0.6s' }}>
+          <p className="font-semibold">{t('dashboard.view_more_reports')} <IconChevronRight stroke={iconStroke} className="inline-block"/></p>
         </Link>
         {/* banner: view more in reports */}
       </div>

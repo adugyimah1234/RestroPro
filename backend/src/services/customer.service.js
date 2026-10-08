@@ -23,7 +23,7 @@ exports.addCustomerDB = async (phone, name, email, birthDate, gender, isMember, 
             tenant_id: tenantId,
             branch_id: branchId
         });
-        return customer.id;
+        return customer.phone;
     } catch (error) {
         console.error(error);
         throw error;
@@ -93,8 +93,17 @@ exports.getAllCustomersDB = async(tenantId, branchId) => {
 
 exports.uploadBulkCustomersDB = async(customers, branchId) => {
     try {
-        await Customer.bulkCreate(customers.map(customer => ({...customer, branch_id: branchId})), {
-            updateOnDuplicate: ['name', 'email', 'birth_date', 'gender']
+        const customerRows = customers.map(([phone, name, email, birth_date, gender, tenant_id]) => ({
+            phone,
+            name,
+            email,
+            birth_date,
+            gender,
+            tenant_id,
+            branch_id: branchId,
+        }));
+        await Customer.bulkCreate(customerRows, {
+            updateOnDuplicate: ['name', 'email', 'birth_date', 'gender', 'branch_id']
         });
         return;
     } catch (error) {

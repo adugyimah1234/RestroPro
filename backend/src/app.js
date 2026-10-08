@@ -35,6 +35,7 @@ const foodPhotographyRoutes = require("./routes/foodPhotography.routes");
 const subscriptionRoutes = require("./routes/subscription.routes");
 const paystackRoutes = require("./routes/paystack.routes");
 const branchRoutes = require("./routes/branch.routes");
+const accountabilityRoutes = require("./routes/accountability.routes");
 // routes import
 
 
@@ -125,6 +126,7 @@ app.use("/api/v1", subscriptionRoutes);
 app.use("/api/v1", paystackRoutes);
 app.use("/api/v1/branches", branchRoutes);
 app.use("/api/v1/branches", branchRoutes);
+app.use("/api/v1/accountability", accountabilityRoutes);
 // routes
 
 app.get("/", (req, res)=>{

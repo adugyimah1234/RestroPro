@@ -295,13 +295,14 @@ exports.updateTaxDB = async (id, title, rate, type, tenantId) => {
 };
 
 
-exports.addPaymentTypeDB = async (title, isActive, tenantId, icon) => {
+exports.addPaymentTypeDB = async (title, isActive, tenantId, icon, isCash = false) => {
     try {
         const paymentType = await PaymentType.create({
             title: title,
             is_active: isActive,
             tenant_id: tenantId,
             icon: icon,
+            is_cash: isCash,
         });
         return paymentType.id;
     } catch (error) {
@@ -319,7 +320,7 @@ exports.getPaymentTypesDB = async (activeOnly=false, tenantId) => {
 
         const paymentTypes = await PaymentType.findAll({
             where: whereCondition,
-            attributes: ['id', 'title', 'is_active', 'icon']
+            attributes: ['id', 'title', 'is_active', 'icon', 'is_cash']
         });
         return paymentTypes;
     } catch (error) {
@@ -328,10 +329,10 @@ exports.getPaymentTypesDB = async (activeOnly=false, tenantId) => {
     }
 };
 
-exports.updatePaymentTypeDB = async (id, title, isActive, tenantId, icon) => {
+exports.updatePaymentTypeDB = async (id, title, isActive, tenantId, icon, isCash = false) => {
     try {
         await PaymentType.update(
-            { title: title, is_active: isActive, icon: icon },
+            { title: title, is_active: isActive, icon: icon, is_cash: isCash },
             { where: { id: id, tenant_id: tenantId } }
         );
         return;

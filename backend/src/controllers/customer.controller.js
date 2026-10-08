@@ -103,7 +103,7 @@ exports.uploadBulkCustomers = async (req, res) => {
 
             if(gender) {
                 const g = new String(gender).toLowerCase();
-                if(g != "male" && g != "female") {
+                if(g != "male" && g != "female" && g != "other") {
                     throw new Error(req.__("invalid_gender_value", { row: i+1, phone })) // Translate message
                 }
             }
