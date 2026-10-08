@@ -1,5 +1,7 @@
 const SubscriptionPlan = require('../models/SubscriptionPlan');
+const Tenant = require('../models/Tenant');
 const paystack = require('../config/paystack.config');
+const { Op } = require('sequelize');
 
 const DEFAULT_PLANS = [
   {
@@ -12,13 +14,19 @@ const DEFAULT_PLANS = [
     duration_days: 30,
     duration_unit: 'month',
     duration_value: 1,
-    description: 'Essential features for single-location starter restaurants.',
+    max_users: 5,
+    max_branches: 1,
+    advanced_reporting_enabled: false,
+    multi_branch_analytics_enabled: false,
+    monthly_ai_queries: 0,
+    description: 'Essential tools and accountability for a single-location restaurant.',
     badge: 'Starter',
     features: [
-      'Up to 500 orders/mo',
-      'Single Branch Access',
+      'Up to 5 Users',
+      '1 Branch',
       'Standard POS & Kitchen Display',
-      'Basic Financial Reports',
+      'Daily Accountability & Cash Closeout',
+      'Sales and Expense Targets',
       'Email Support'
     ],
     paystack_plan_id: '',
@@ -34,14 +42,21 @@ const DEFAULT_PLANS = [
     duration_days: 30,
     duration_unit: 'month',
     duration_value: 1,
+    max_users: 15,
+    max_branches: 3,
+    advanced_reporting_enabled: false,
+    multi_branch_analytics_enabled: false,
+    monthly_ai_queries: 0,
     description: 'All-in-one solution for growing restaurant businesses.',
     badge: 'Most Popular',
     features: [
-      'Unlimited Orders',
+      'Up to 15 Users',
       'Up to 3 Branches',
       'Live Kitchen & Order Display',
       'Inventory & Stock Management',
       'QR Code Digital Menu',
+      'Detailed Staff Activity History',
+      'Branch-by-Branch Standard Reports',
       'Priority Email & Chat Support'
     ],
     paystack_plan_id: '',
@@ -57,11 +72,18 @@ const DEFAULT_PLANS = [
     duration_days: 30,
     duration_unit: 'month',
     duration_value: 1,
-    description: 'Full enterprise suite with advanced analytics & multi-branch operations.',
+    max_users: 30,
+    max_branches: 10,
+    advanced_reporting_enabled: true,
+    multi_branch_analytics_enabled: true,
+    monthly_ai_queries: 100,
+    description: 'Advanced intelligence and consolidated analytics for multi-location businesses.',
     badge: 'Best Value',
     features: [
-      'Unlimited Orders & Unlimited Branches',
-      'Advanced Analytics & PDF Reports',
+      'Up to 30 Users',
+      'Up to 10 Branches',
+      'AI Business Reporting (100 questions/month)',
+      'Consolidated Multi-Branch Analytics',
       'Full Inventory & Purchase Orders',
       'SuperAdmin & Multi-Branch Management',
       'Custom Domain & Branding',
@@ -137,6 +159,11 @@ exports.createSubscriptionPlan = async (data) => {
       duration_days: data.duration_days || 30,
       duration_unit: data.duration_unit || 'month',
       duration_value: data.duration_value || 1,
+      max_users: data.max_users ?? null,
+      max_branches: data.max_branches ?? null,
+      advanced_reporting_enabled: data.advanced_reporting_enabled ?? false,
+      multi_branch_analytics_enabled: data.multi_branch_analytics_enabled ?? false,
+      monthly_ai_queries: data.monthly_ai_queries ?? 0,
       features: data.features || [],
       paystack_plan_id: data.paystack_plan_id || '',
       description: data.description || '',
@@ -167,6 +194,11 @@ exports.updateSubscriptionPlan = async (id, data) => {
     plan.duration_days = data.duration_days !== undefined ? data.duration_days : plan.duration_days;
     plan.duration_unit = data.duration_unit !== undefined ? data.duration_unit : plan.duration_unit;
     plan.duration_value = data.duration_value !== undefined ? data.duration_value : plan.duration_value;
+    plan.max_users = data.max_users !== undefined ? data.max_users : plan.max_users;
+    plan.max_branches = data.max_branches !== undefined ? data.max_branches : plan.max_branches;
+    plan.advanced_reporting_enabled = data.advanced_reporting_enabled !== undefined ? data.advanced_reporting_enabled : plan.advanced_reporting_enabled;
+    plan.multi_branch_analytics_enabled = data.multi_branch_analytics_enabled !== undefined ? data.multi_branch_analytics_enabled : plan.multi_branch_analytics_enabled;
+    plan.monthly_ai_queries = data.monthly_ai_queries !== undefined ? data.monthly_ai_queries : plan.monthly_ai_queries;
     plan.features = data.features !== undefined ? data.features : plan.features;
     plan.paystack_plan_id = data.paystack_plan_id !== undefined ? data.paystack_plan_id : plan.paystack_plan_id;
     plan.description = data.description !== undefined ? data.description : plan.description;
@@ -184,11 +216,44 @@ exports.updateSubscriptionPlan = async (id, data) => {
 exports.resetToDefaultPlans = async () => {
   try {
     await SubscriptionPlan.sync({ alter: true });
-    await SubscriptionPlan.destroy({ where: {} });
-    for (const p of DEFAULT_PLANS) {
-      await SubscriptionPlan.create(p);
-    }
-    return await SubscriptionPlan.findAll({ order: [['id', 'ASC']] });
+    return await SubscriptionPlan.sequelize.transaction(async (transaction) => {
+      const existingPlans = await SubscriptionPlan.findAll({
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const retainedPlanIds = [];
+
+      for (const defaultPlan of DEFAULT_PLANS) {
+        const matchingPlan = existingPlans.find((plan) =>
+          (plan.plan_code || plan.name || '').toLowerCase() === defaultPlan.plan_code
+        );
+        if (matchingPlan) {
+          await matchingPlan.update(defaultPlan, { transaction });
+          retainedPlanIds.push(matchingPlan.id);
+        } else {
+          const createdPlan = await SubscriptionPlan.create(defaultPlan, { transaction });
+          retainedPlanIds.push(createdPlan.id);
+        }
+      }
+
+      const assignedCustomPlans = await Tenant.count({
+        where: {
+          subscription_plan_id: {
+            [Op.notIn]: retainedPlanIds,
+          },
+        },
+        transaction,
+      });
+      if (assignedCustomPlans > 0) {
+        throw new Error('Cannot reset plans while tenants are assigned to custom plans. Reassign those tenants first.');
+      }
+
+      await SubscriptionPlan.destroy({
+        where: { id: { [Op.notIn]: retainedPlanIds } },
+        transaction,
+      });
+      return SubscriptionPlan.findAll({ order: [['id', 'ASC']], transaction });
+    });
   } catch (error) {
     console.error('Error resetting default plans:', error);
     throw error;
@@ -200,6 +265,10 @@ exports.deleteSubscriptionPlan = async (id) => {
     const plan = await SubscriptionPlan.findByPk(id);
     if (!plan) {
       throw new Error('Subscription plan not found.');
+    }
+    const assignedTenants = await Tenant.count({ where: { subscription_plan_id: id } });
+    if (assignedTenants > 0) {
+      throw new Error('Cannot delete a plan assigned to tenants. Assign them to another plan first.');
     }
     await plan.destroy();
     return { message: 'Subscription plan deleted successfully.' };

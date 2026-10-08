@@ -105,6 +105,9 @@ export default function InActiveSubscriptionPage() {
                             / {plan.frequency || "monthly"}
                           </span>
                         </div>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          {plan.max_users ?? "Unlimited"} users · {plan.max_branches ?? "Unlimited"} branches
+                        </p>
                       </div>
 
                       <ul className="space-y-3 mb-8 text-sm">

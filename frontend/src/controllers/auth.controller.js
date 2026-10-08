@@ -82,10 +82,10 @@ export async function resetPassword(token, password) {
     }
 }
 
-export async function getPaystackSubscriptionURL() {
+export async function getPaystackSubscriptionURL(planId) {
     axios.defaults.withCredentials = true;
     try {
-        const response = await ApiClient.post(`${API}/auth/paystack-subscription-lookup`);
+        const response = await ApiClient.post(`${API}/auth/paystack-subscription-lookup`, { planId });
         return response;
     } catch (error) {
         throw error;

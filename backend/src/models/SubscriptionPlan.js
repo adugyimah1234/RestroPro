@@ -53,6 +53,29 @@ const SubscriptionPlan = sequelize.define('SubscriptionPlan', {
         type: DataTypes.JSON,
         allowNull: true,
     },
+    max_users: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    max_branches: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    advanced_reporting_enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
+    multi_branch_analytics_enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
+    monthly_ai_queries: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+    },
     paystack_plan_id: {
         type: DataTypes.STRING,
         allowNull: true,

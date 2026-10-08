@@ -23,6 +23,8 @@ Point‑of‑Sale (POS) system for restaurants, cafes, hotels, and food trucks.
 - Reports & analytics: ApexCharts powered sales summaries, daily/weekly reports
 - AI Assistant: Integrated Google Gemini AI for smart insights
 - Settings: Tax, tips, payment methods (Cash, Card, Stripe, Paystack), receipts
+- Editable subscription limits: Basic (5 users, 1 branch), Premium (15 users, 3 branches),
+  and Advance (unlimited by default); new user and branch creation is blocked at the active plan's limits
 
 ---
 
@@ -56,6 +58,7 @@ Point‑of‑Sale (POS) system for restaurants, cafes, hotels, and food trucks.
    ```env
    DATABASE_URL="mysql://root:yourpassword@localhost:3306/restropro_saas"
    JWT_SECRET="restro_jwt_secret"
+   GEMINI_SETTINGS_ENCRYPTION_KEY="replace_with_a_long_random_secret"
    JWT_EXPIRY="15m"
    JWT_EXPIRY_REFRESH="30d"
    COOKIE_EXPIRY=900000
@@ -72,6 +75,10 @@ Point‑of‑Sale (POS) system for restaurants, cafes, hotels, and food trucks.
    npm run migrate
    npm run seed
    ```
+
+   Set `GEMINI_SETTINGS_ENCRYPTION_KEY` to a strong, private random value in `backend/.env`.
+   Keep it stable and backed up: it is required to decrypt the Gemini key stored by the
+   Super Admin settings page.
 
    Start backend server:
 

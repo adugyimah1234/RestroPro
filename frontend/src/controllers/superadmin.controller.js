@@ -138,10 +138,11 @@ export function useSuperAdminTenantSubscriptionHistory(tenantId) {
   };
 }
 
-export async function updateTenantSubscription(id, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive) {
+export async function updateTenantSubscription(id, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive, subscriptionPlanId, overrides = {}) {
   try {
     const response = await ApiClient.patch(`${API}/superadmin/tenants/${id}/update-subscription`, {
-      subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive
+      subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive, subscriptionPlanId,
+      ...overrides
     });
     return response;
   } catch (error) {

@@ -574,12 +574,30 @@ exports.paystackSubscriptionLookup = async (req, res) => {
         const user = req.user;
         const tenantId = user.tenant_id;
         const email = user.email || user.username;
+        const { planId } = req.body;
+        if (!planId) {
+            return res.status(400).json({
+                success: false,
+                message: "A subscription plan must be selected.",
+            });
+        }
+
+        const plan = await subscriptionService.getSubscriptionPlanById(planId);
+        if (!plan || !plan.is_active) {
+            return res.status(404).json({
+                success: false,
+                message: "The selected subscription plan is unavailable.",
+            });
+        }
+
         const reference = `sub_${Date.now()}_${tenantId}`;
-        const amount = 50; // GH₵ 50 per month
+        const amount = plan.price || plan.amount;
 
         const metadata = {
             tenant_id: tenantId,
             email: email,
+            subscription_plan_id: plan.id,
+            plan_name: plan.name,
         };
 
         const callbackUrl = `${CONFIG.FRONTEND_DOMAIN}/success?reference=${reference}`;

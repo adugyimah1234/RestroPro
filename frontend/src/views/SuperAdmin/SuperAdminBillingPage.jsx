@@ -36,6 +36,11 @@ export default function SuperAdminBillingPage() {
     paystack_plan_id: "",
     is_active: true,
     features: [],
+    max_users: "",
+    max_branches: "",
+    advanced_reporting_enabled: false,
+    multi_branch_analytics_enabled: false,
+    monthly_ai_queries: 0,
   });
   const [newFeatureText, setNewFeatureText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -53,6 +58,11 @@ export default function SuperAdminBillingPage() {
       paystack_plan_id: plan.paystack_plan_id || "",
       is_active: plan.is_active !== undefined ? plan.is_active : true,
       features: Array.isArray(plan.features) ? [...plan.features] : [],
+      max_users: plan.max_users ?? "",
+      max_branches: plan.max_branches ?? "",
+      advanced_reporting_enabled: Boolean(plan.advanced_reporting_enabled),
+      multi_branch_analytics_enabled: Boolean(plan.multi_branch_analytics_enabled),
+      monthly_ai_queries: plan.monthly_ai_queries ?? 0,
     });
     setNewFeatureText("");
   };
@@ -83,11 +93,27 @@ export default function SuperAdminBillingPage() {
       toast.error("Plan name is required");
       return;
     }
+    const usageLimits = ["max_users", "max_branches"];
+    if (usageLimits.some((field) =>
+      formData[field] !== "" && (!Number.isInteger(Number(formData[field])) || Number(formData[field]) < 1)
+    )) {
+      toast.error("Usage limits must be positive whole numbers or left empty for unlimited.");
+      return;
+    }
+    if (!Number.isInteger(Number(formData.monthly_ai_queries)) || Number(formData.monthly_ai_queries) < 0) {
+      toast.error("Monthly AI question limit must be a non-negative whole number.");
+      return;
+    }
 
     try {
       setIsSaving(true);
       toast.loading("Saving changes...");
-      await updateSubscriptionPlan(editingPlan.id, formData);
+      await updateSubscriptionPlan(editingPlan.id, {
+        ...formData,
+        max_users: formData.max_users === "" ? null : Number(formData.max_users),
+        max_branches: formData.max_branches === "" ? null : Number(formData.max_branches),
+        monthly_ai_queries: Number(formData.monthly_ai_queries),
+      });
       toast.dismiss();
       toast.success("Subscription plan updated successfully!");
       mutate();
@@ -134,10 +160,10 @@ export default function SuperAdminBillingPage() {
   if (editingPlan) {
     return (
       <Page>
-        <div className="p-4 lg:p-8 max-w-5xl mx-auto">
+        <div className="w-full max-w-5xl mx-auto p-3 sm:p-4 lg:p-8">
           {/* Top Bar Navigation */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-gray-200 dark:border-restro-border-green">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 pb-4 border-b border-gray-200 dark:border-restro-border-green">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleCloseEdit}
                 className="p-2 rounded-full border border-gray-200 dark:border-restro-border-green hover:bg-gray-100 dark:hover:bg-restro-gray transition text-gray-600 dark:text-gray-300"
@@ -155,7 +181,7 @@ export default function SuperAdminBillingPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={handleCloseEdit}
@@ -183,7 +209,7 @@ export default function SuperAdminBillingPage() {
                 General Plan Information
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
                     Plan Name
@@ -210,7 +236,7 @@ export default function SuperAdminBillingPage() {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
                     Short Description / Tagline
                   </label>
@@ -223,7 +249,7 @@ export default function SuperAdminBillingPage() {
                   />
                 </div>
 
-                <div className="md:col-span-2 pt-2">
+                <div className="sm:col-span-2 pt-2">
                   <label className="inline-flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -237,6 +263,47 @@ export default function SuperAdminBillingPage() {
                   </label>
                 </div>
               </div>
+
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className="flex items-start gap-3 rounded-xl border border-gray-200 dark:border-restro-border-green p-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.advanced_reporting_enabled}
+                    onChange={(e) => setFormData({ ...formData, advanced_reporting_enabled: e.target.checked })}
+                    className="mt-1 accent-restro-green"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold">AI business reporting</span>
+                    <span className="block text-xs text-gray-500">Allow natural-language questions about this tenant&apos;s aggregate business data.</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-xl border border-gray-200 dark:border-restro-border-green p-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.multi_branch_analytics_enabled}
+                    onChange={(e) => setFormData({ ...formData, multi_branch_analytics_enabled: e.target.checked })}
+                    className="mt-1 accent-restro-green"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold">Consolidated multi-branch analytics</span>
+                    <span className="block text-xs text-gray-500">Compare aggregate performance across locations.</span>
+                  </span>
+                </label>
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
+                    AI reporting questions per month
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.monthly_ai_queries}
+                    onChange={(e) => setFormData({ ...formData, monthly_ai_queries: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-restro-border-green bg-transparent focus:outline-none focus:border-restro-green text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Set to 0 to disable AI questions.</p>
+                </div>
+              </div>
             </div>
 
             {/* Section 2: Pricing & Payment Configuration */}
@@ -245,7 +312,7 @@ export default function SuperAdminBillingPage() {
                 Pricing & Payment Configuration
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
                     Price Amount
@@ -287,7 +354,7 @@ export default function SuperAdminBillingPage() {
                   </select>
                 </div>
 
-                <div className="md:col-span-3">
+                <div className="sm:col-span-2 xl:col-span-3">
                   <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
                     Paystack Plan Code / ID (Optional)
                   </label>
@@ -305,13 +372,52 @@ export default function SuperAdminBillingPage() {
               </div>
             </div>
 
-            {/* Section 3: Feature Bullet Points */}
-            <div className="bg-white dark:bg-restro-card-bg border border-gray-200 dark:border-restro-border-green rounded-2xl p-6">
+            <div className="bg-white dark:bg-restro-card-bg border border-gray-200 dark:border-restro-border-green rounded-2xl p-4 sm:p-6">
+              <h2 className="text-base font-bold mb-2 text-gray-900 dark:text-white border-b pb-2 border-gray-100 dark:border-restro-border-green">
+                Usage Limits
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                New user and branch creation is blocked when a tenant reaches a configured limit. Leave a limit empty for unlimited.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
+                    Maximum Users
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={formData.max_users}
+                    onChange={(e) => setFormData({ ...formData, max_users: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-restro-border-green bg-transparent focus:outline-none focus:border-restro-green text-sm"
+                    placeholder="Unlimited"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
+                    Maximum Branches
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={formData.max_branches}
+                    onChange={(e) => setFormData({ ...formData, max_branches: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-restro-border-green bg-transparent focus:outline-none focus:border-restro-green text-sm"
+                    placeholder="Unlimited"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Feature Bullet Points */}
+            <div className="bg-white dark:bg-restro-card-bg border border-gray-200 dark:border-restro-border-green rounded-2xl p-4 sm:p-6">
               <h2 className="text-base font-bold mb-4 text-gray-900 dark:text-white border-b pb-2 border-gray-100 dark:border-restro-border-green">
                 Plan Features & Capabilities
               </h2>
 
-              <div className="flex gap-2 mb-4">
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
                 <input
                   type="text"
                   placeholder="Enter feature title (e.g. Unlimited Orders, Multi-Branch Access)..."
@@ -328,7 +434,7 @@ export default function SuperAdminBillingPage() {
                 <button
                   type="button"
                   onClick={handleAddFeature}
-                  className="bg-restro-green hover:bg-restro-green-button-hover text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 shrink-0"
+                  className="bg-restro-green hover:bg-restro-green-button-hover text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 shrink-0"
                 >
                   <IconPlus size={18} /> Add Feature
                 </button>
@@ -365,7 +471,7 @@ export default function SuperAdminBillingPage() {
             </div>
 
             {/* Bottom Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4">
               <button
                 type="button"
                 onClick={handleCloseEdit}
@@ -393,9 +499,9 @@ export default function SuperAdminBillingPage() {
   // -------------------------------------------------------------
   return (
     <Page>
-      <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+      <div className="w-full max-w-7xl mx-auto p-3 sm:p-4 lg:p-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl lg:text-3xl font-extrabold flex items-center gap-3">
               <IconCreditCard className="text-restro-green" size={32} stroke={iconStroke} />
@@ -408,7 +514,7 @@ export default function SuperAdminBillingPage() {
 
           <button
             onClick={handleResetDefaults}
-            className="flex items-center gap-2 border border-gray-200 dark:border-restro-border-green hover:bg-gray-100 dark:bg-restro-card-bg dark:hover:bg-restro-gray px-4 py-2.5 rounded-xl text-sm font-semibold transition"
+            className="flex w-full sm:w-auto items-center justify-center gap-2 border border-gray-200 dark:border-restro-border-green hover:bg-gray-100 dark:bg-restro-card-bg dark:hover:bg-restro-gray px-4 py-2.5 rounded-xl text-sm font-semibold transition"
           >
             <IconRefresh size={18} />
             Reset to Default 3 Cards
@@ -428,7 +534,7 @@ export default function SuperAdminBillingPage() {
 
         {/* Cards Grid */}
         {!isLoading && plans && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-6 items-stretch">
             {plans.map((plan) => {
               const isPopular =
                 plan.badge?.toLowerCase().includes("popular") ||
@@ -437,7 +543,7 @@ export default function SuperAdminBillingPage() {
               return (
                 <div
                   key={plan.id}
-                  className={`rounded-2xl p-6 md:p-8 border flex flex-col justify-between bg-white dark:bg-restro-card-bg ${
+                  className={`min-w-0 rounded-2xl p-4 sm:p-6 border flex flex-col justify-between bg-white dark:bg-restro-card-bg ${
                     isPopular
                       ? "border-restro-green border-2"
                       : "border-gray-200 dark:border-restro-border-green"
@@ -445,7 +551,7 @@ export default function SuperAdminBillingPage() {
                 >
                   <div>
                     {/* Header Row */}
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3">
                         {getPlanIcon(plan.name)}
                         <div>
@@ -476,7 +582,7 @@ export default function SuperAdminBillingPage() {
 
                     {/* Price */}
                     <div className="mb-6 pb-6 border-b border-gray-100 dark:border-restro-border-green">
-                      <div className="flex items-baseline gap-1">
+                      <div className="flex flex-wrap items-baseline gap-1">
                         <span className="text-3xl font-bold text-gray-900 dark:text-white">
                           {plan.currency || "GH₵"}
                           {Number(plan.price || plan.amount || 0).toFixed(2)}
@@ -486,10 +592,13 @@ export default function SuperAdminBillingPage() {
                         </span>
                       </div>
                       {plan.paystack_plan_id && (
-                        <p className="text-[11px] font-mono text-gray-400 mt-2">
+                        <p className="break-all text-[11px] font-mono text-gray-400 mt-2">
                           Paystack Code: {plan.paystack_plan_id}
                         </p>
                       )}
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Users: {plan.max_users ?? "Unlimited"} · Branches: {plan.max_branches ?? "Unlimited"}
+                      </p>
                     </div>
 
                     {/* Features List */}

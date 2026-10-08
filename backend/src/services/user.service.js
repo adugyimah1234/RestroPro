@@ -50,7 +50,7 @@ exports.doUserExistDB = async (username) => {
     }
 };
 
-exports.addUserDB = async (tenantId, username, encryptedPassword, name, role, photo, designation, phone, email, scope) => {
+exports.addUserDB = async (tenantId, username, encryptedPassword, name, role, photo, designation, phone, email, scope, options = {}) => {
     try {
         await User.create({
             username: username,
@@ -63,7 +63,7 @@ exports.addUserDB = async (tenantId, username, encryptedPassword, name, role, ph
             email: email,
             scope: scope,
             tenant_id: tenantId
-        });
+        }, options);
         return;
     } catch (error) {
         console.error(error);

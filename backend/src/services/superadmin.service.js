@@ -193,7 +193,13 @@ exports.getTenantDetailsDB = async(tenantId) => {
     try {
         const tenant = await Tenant.findOne({
             where: { id: tenantId },
-            attributes: ['id', 'name', 'is_active', 'created_at', 'subscription_id', 'payment_customer_id', 'subscription_start', 'subscription_end']
+            attributes: [
+                'id', 'name', 'is_active', 'created_at', 'subscription_id',
+                'payment_customer_id', 'subscription_start', 'subscription_end',
+                'subscription_plan_id', 'max_users_override', 'max_branches_override',
+                'advanced_reporting_enabled_override', 'multi_branch_analytics_enabled_override',
+                'monthly_ai_queries_override'
+            ]
         });
         return tenant;
     } catch (error) {
@@ -249,6 +255,7 @@ exports.getTenantsDB = async (page, perPage, search, status, type , from , to) =
         }
 
         const { count, rows: tenants } = await Tenant.findAndCountAll({
+            attributes: ['id', 'name', 'is_active', 'created_at', 'subscription_start', 'subscription_end'],
             where: whereCondition,
             include: includeCondition,
             limit: limit,
@@ -721,7 +728,7 @@ const getFilterCondition = (field, type, from, to) => {
     return { filter };
 }
 
-exports.updateTenantSubscriptionDB = async (tenantId, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive) => {
+exports.updateTenantSubscriptionDB = async (tenantId, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive, subscriptionPlanId, overrides) => {
     try {
         await Tenant.update(
             {
@@ -729,7 +736,13 @@ exports.updateTenantSubscriptionDB = async (tenantId, subscriptionId, paymentCus
                 payment_customer_id: paymentCustomerId,
                 subscription_start: subscriptionStart,
                 subscription_end: subscriptionEnd,
-                is_active: isActive
+                is_active: isActive,
+                subscription_plan_id: subscriptionPlanId,
+                max_users_override: overrides.max_users_override,
+                max_branches_override: overrides.max_branches_override,
+                advanced_reporting_enabled_override: overrides.advanced_reporting_enabled_override,
+                multi_branch_analytics_enabled_override: overrides.multi_branch_analytics_enabled_override,
+                monthly_ai_queries_override: overrides.monthly_ai_queries_override
             },
             {
                 where: { id: tenantId }

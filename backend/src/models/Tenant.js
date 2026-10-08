@@ -20,6 +20,30 @@ const Tenant = sequelize.define('Tenant', {
     type: DataTypes.STRING(255),
     allowNull: true,
   },
+  subscription_plan_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  max_users_override: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  max_branches_override: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  advanced_reporting_enabled_override: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+  },
+  multi_branch_analytics_enabled_override: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+  },
+  monthly_ai_queries_override: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
   payment_customer_id: {
     type: DataTypes.STRING(255),
     allowNull: true,

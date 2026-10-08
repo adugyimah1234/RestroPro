@@ -2,6 +2,8 @@ const { CONFIG } = require("../config");
 const { ROLES, SCOPES } = require("../config/user.config");
 const { getAllUsersDB, doUserExistDB, addUserDB, deleteUserDB, deleteUserRefreshTokensDB, updateUserDB, updateUserPasswordDB } = require("../services/user.service");
 const bcrypt = require("bcrypt");
+const sequelize = require("../config/sequelize");
+const { assertTenantCanCreate, PlanLimitReachedError } = require("../services/planLimits.service");
 
 exports.getAllUsers = async (req, res) => {
     try {
@@ -91,7 +93,22 @@ exports.addUser = async (req, res) => {
         const encryptedPassword = await bcrypt.hash(password, CONFIG.PASSWORD_SALT);
 
         // 3. create user
-        await addUserDB(tenantId, username, encryptedPassword, name, role, null, designation, phone, email, userScopes.join(","));
+        await sequelize.transaction(async (transaction) => {
+            await assertTenantCanCreate(tenantId, "users", transaction);
+            await addUserDB(
+                tenantId,
+                username,
+                encryptedPassword,
+                name,
+                role,
+                null,
+                designation,
+                phone,
+                email,
+                userScopes.join(","),
+                { transaction }
+            );
+        });
 
         return res.status(200).json({
             success: true,
@@ -99,6 +116,16 @@ exports.addUser = async (req, res) => {
         });
 
     } catch (error) {
+        if (error instanceof PlanLimitReachedError) {
+            return res.status(403).json({
+                success: false,
+                code: error.code,
+                resource: error.resource,
+                limit: error.limit,
+                current: error.current,
+                message: error.message,
+            });
+        }
         console.error(error);
         return res.status(500).json({
             success: false,

@@ -27,6 +27,7 @@ import {
   getSuperAdminTenantsData,
   updateTenantSubscription, // Added import
   getTenantDetails, // Added import
+  useSuperAdminSubscriptionPlans,
 } from "../../controllers/superadmin.controller";
 import { clsx } from "clsx";
 import { toast } from "react-hot-toast";
@@ -35,6 +36,15 @@ import { mutate } from "swr";
 import useDebounce from "../../utils/useDebounce";
 import { Link } from "react-router-dom";
 import { useTheme } from "../../contexts/ThemeContext";
+
+const formatSubscriptionDate = (value) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
+};
 
 export default function SuperAdminTenantsPage() {
   const { t } = useTranslation();
@@ -52,6 +62,7 @@ export default function SuperAdminTenantsPage() {
   const fromDateRef = useRef();
   const toDateRef = useRef();
   const {theme} = useTheme();
+  const { data: subscriptionPlans = [] } = useSuperAdminSubscriptionPlans();
 
   // For Add tenant
   const nameRef = useRef();
@@ -73,6 +84,12 @@ export default function SuperAdminTenantsPage() {
   const subscriptionStartRef = useRef(); // Added ref
   const subscriptionEndRef = useRef(); // Added ref
   const subscriptionIsActiveRef = useRef(); // Added ref
+  const subscriptionPlanIdRef = useRef();
+  const maxUsersOverrideRef = useRef();
+  const maxBranchesOverrideRef = useRef();
+  const advancedReportingOverrideRef = useRef();
+  const multiBranchAnalyticsOverrideRef = useRef();
+  const monthlyAiQueriesOverrideRef = useRef();
 
   // For Delete
   const [tenantIdForDelete, setTenantIdForDelete] = useState(null);
@@ -442,6 +459,16 @@ export default function SuperAdminTenantsPage() {
         subscriptionStartRef.current.value = tenantInfo?.subscription_start?.split("T")[0] || "";
         subscriptionEndRef.current.value = tenantInfo?.subscription_end?.split("T")[0] || "";
         subscriptionIsActiveRef.current.checked = tenantInfo?.is_active || false;
+        subscriptionPlanIdRef.current.value = tenantInfo?.subscription_plan_id || "";
+        maxUsersOverrideRef.current.value = tenantInfo?.max_users_override ?? "";
+        maxBranchesOverrideRef.current.value = tenantInfo?.max_branches_override ?? "";
+        advancedReportingOverrideRef.current.value = tenantInfo?.advanced_reporting_enabled_override == null
+          ? ""
+          : String(Boolean(tenantInfo.advanced_reporting_enabled_override));
+        multiBranchAnalyticsOverrideRef.current.value = tenantInfo?.multi_branch_analytics_enabled_override == null
+          ? ""
+          : String(Boolean(tenantInfo.multi_branch_analytics_enabled_override));
+        monthlyAiQueriesOverrideRef.current.value = tenantInfo?.monthly_ai_queries_override ?? "";
         document.getElementById("modal-update-subscription").showModal();
       }
     } catch (error) {
@@ -458,8 +485,9 @@ export default function SuperAdminTenantsPage() {
     const subscriptionStart = subscriptionStartRef.current.value;
     const subscriptionEnd = subscriptionEndRef.current.value;
     const isActive = subscriptionIsActiveRef.current.checked;
+    const subscriptionPlanId = subscriptionPlanIdRef.current.value;
 
-    if (!subscriptionId || !paymentCustomerId || !subscriptionStart || !subscriptionEnd) {
+    if (!subscriptionId || !paymentCustomerId || !subscriptionStart || !subscriptionEnd || !subscriptionPlanId) {
       toast.error(t('superadmin_tenants.please_provide_all_subscription_details')); // New translation key
       return;
     }
@@ -472,7 +500,15 @@ export default function SuperAdminTenantsPage() {
         paymentCustomerId,
         subscriptionStart,
         subscriptionEnd,
-        isActive
+        isActive,
+        subscriptionPlanId,
+        {
+          maxUsersOverride: maxUsersOverrideRef.current.value,
+          maxBranchesOverride: maxBranchesOverrideRef.current.value,
+          advancedReportingEnabledOverride: advancedReportingOverrideRef.current.value,
+          multiBranchAnalyticsEnabledOverride: multiBranchAnalyticsOverrideRef.current.value,
+          monthlyAiQueriesOverride: monthlyAiQueriesOverrideRef.current.value,
+        }
       );
       if (res.status === 200) {
         await fetchData();
@@ -650,10 +686,10 @@ export default function SuperAdminTenantsPage() {
                           </span>
                         </div>
                         <div className="w-1/4 min-w-[150px] max-w-[200px] text-center text-sm font-bold">
-                          {tenant.subscription_start}
+                          {formatSubscriptionDate(tenant.subscription_start)}
                         </div>
                         <div className="w-1/4 min-w-[150px] max-w-[200px] text-center text-sm font-bold">
-                          {tenant.subscription_end}
+                          {formatSubscriptionDate(tenant.subscription_end)}
                         </div>
                         <div className="w-1/4 min-w-[80px] max-w-[120px] text-center text-sm font-bold">
                           {subscriptionPrice}/{t('superadmin_tenants.month')}
@@ -1099,6 +1135,63 @@ export default function SuperAdminTenantsPage() {
       <dialog id="modal-update-subscription" className="modal modal-bottom sm:modal-middle">
         <div className='modal-box border border-restro-border-green dark:rounded-2xl'>
           <h3 className="font-bold text-lg">{t('superadmin_tenants.update_subscription')}</h3> {/* New translation key */}
+
+          <div className="mt-4">
+            <label htmlFor="subscriptionPlanId" className="mb-1 block text-gray-500 text-sm">
+              Subscription plan
+            </label>
+            <select
+              ref={subscriptionPlanIdRef}
+              id="subscriptionPlanId"
+              name="subscriptionPlanId"
+              required
+              className="text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green"
+            >
+              <option value="">Select a plan</option>
+              {subscriptionPlans.map((plan) => (
+                <option key={plan.id} value={plan.id}>
+                  {plan.name} — {plan.max_users ?? "Unlimited"} users / {plan.max_branches ?? "Unlimited"} branches
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <section className="mt-5 rounded-xl border border-restro-border-green p-4">
+            <h4 className="text-sm font-semibold">Tenant-specific plan overrides</h4>
+            <p className="mt-1 text-xs text-gray-500">
+              Leave a setting blank to inherit it from the selected plan. Set a limit to 0 for unlimited users or branches.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm">
+                User limit
+                <input ref={maxUsersOverrideRef} type="number" min="0" step="1" placeholder="Use plan limit" className="mt-1 w-full rounded-lg border border-restro-border-green bg-transparent px-3 py-2" />
+              </label>
+              <label className="text-sm">
+                Branch limit
+                <input ref={maxBranchesOverrideRef} type="number" min="0" step="1" placeholder="Use plan limit" className="mt-1 w-full rounded-lg border border-restro-border-green bg-transparent px-3 py-2" />
+              </label>
+              <label className="text-sm">
+                AI business reporting
+                <select ref={advancedReportingOverrideRef} className="mt-1 w-full rounded-lg border border-restro-border-green bg-restro-card-bg px-3 py-2">
+                  <option value="">Use plan setting</option>
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                Multi-branch analytics
+                <select ref={multiBranchAnalyticsOverrideRef} className="mt-1 w-full rounded-lg border border-restro-border-green bg-restro-card-bg px-3 py-2">
+                  <option value="">Use plan setting</option>
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </label>
+              <label className="text-sm sm:col-span-2">
+                AI questions per month
+                <input ref={monthlyAiQueriesOverrideRef} type="number" min="0" step="1" placeholder="Use plan limit" className="mt-1 w-full rounded-lg border border-restro-border-green bg-transparent px-3 py-2" />
+              </label>
+            </div>
+          </section>
 
           <div className="mt-4">
             <label htmlFor="subscriptionId" className="mb-1 block text-gray-500 text-sm">

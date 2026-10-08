@@ -4,6 +4,7 @@ const { removeRefreshTokenDB, addRefreshTokenDB, verifyRefreshTokenDB } = requir
 const { signInDB, getAdminUserDB, getActiveTenantsDB, getInActiveTenantsDB,getAllTenantsDB,  getOrdersProcessedTodayDB, getSalesVolumeTodayDB, getMRRValueDB, getARRValueDB, getRestaurantsTotalCustomersDB, getSuperAdminTopSellingItemsDB, getSuperAdminSalesVolumeDB, getSuperAdminOrdersProcessedDB, getTenantsDB , addTenantDB , updateTenantDB , getTenantCntByIdDB ,getTenantDetailsByIdDB , logoutAllUsersOfTenantDB , deleteTenantDB , getTenantsDataByStatusDB, getTenantSubscriptionHistoryDB, getTenantTotalUsersDB, getTenantDetailsDB, getTenantStoreDetailsDB, updateTenantSubscriptionDB } = require("../services/superadmin.service")
 const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 const {checkEmailExistsSuperadminDB} = require('../services/auth.service');
+const SubscriptionPlan = require("../models/SubscriptionPlan");
 
 exports.signIn = async (req, res) => {
     try {
@@ -493,16 +494,47 @@ exports.getSuperAdminReportsData = async (req, res) => {
 exports.updateTenantSubscription = async (req, res) => {
     try {
         const tenantId = req.params.id;
-        const { subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive } = req.body;
+        const {
+            subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive, subscriptionPlanId,
+            maxUsersOverride, maxBranchesOverride, advancedReportingEnabledOverride,
+            multiBranchAnalyticsEnabledOverride, monthlyAiQueriesOverride
+        } = req.body;
 
         if (!tenantId) {
             return res.status(400).json({ message: req.__("invalid_tenant") });
         }
-        if (!subscriptionId || !paymentCustomerId || !subscriptionStart || !subscriptionEnd || isActive === undefined) {
+        if (!subscriptionId || !paymentCustomerId || !subscriptionStart || !subscriptionEnd || isActive === undefined || !subscriptionPlanId) {
             return res.status(400).json({ message: req.__("missing_required_fields") });
         }
 
-        await updateTenantSubscriptionDB(tenantId, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive);
+        const plan = await SubscriptionPlan.findByPk(subscriptionPlanId);
+        if (!plan) {
+            return res.status(400).json({ message: "A valid subscription plan is required." });
+        }
+
+        const parseNonNegativeInteger = (value, field) => {
+            if (value === null || value === undefined || value === '') return null;
+            const parsed = Number(value);
+            if (!Number.isInteger(parsed) || parsed < 0) {
+                throw Object.assign(new Error(`${field} must be zero or a positive whole number.`), { status: 400 });
+            }
+            return parsed;
+        };
+        const parseBooleanOverride = (value, field) => {
+            if (value === null || value === undefined || value === '') return null;
+            if (value === true || value === 'true') return true;
+            if (value === false || value === 'false') return false;
+            throw Object.assign(new Error(`${field} must be true, false, or inherited from the plan.`), { status: 400 });
+        };
+        const overrides = {
+            max_users_override: parseNonNegativeInteger(maxUsersOverride, 'User limit'),
+            max_branches_override: parseNonNegativeInteger(maxBranchesOverride, 'Branch limit'),
+            advanced_reporting_enabled_override: parseBooleanOverride(advancedReportingEnabledOverride, 'AI reporting'),
+            multi_branch_analytics_enabled_override: parseBooleanOverride(multiBranchAnalyticsEnabledOverride, 'Multi-branch analytics'),
+            monthly_ai_queries_override: parseNonNegativeInteger(monthlyAiQueriesOverride, 'Monthly AI question limit')
+        };
+
+        await updateTenantSubscriptionDB(tenantId, subscriptionId, paymentCustomerId, subscriptionStart, subscriptionEnd, isActive, subscriptionPlanId, overrides);
 
         return res.status(200).json({
             success: true,
@@ -511,9 +543,9 @@ exports.updateTenantSubscription = async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        return res.status(500).json({
+        return res.status(error.status || 500).json({
             success: false,
-            message: req.__("something_went_wrong_try_later")
+            message: error.status ? error.message : req.__("something_went_wrong_try_later")
         });
     }
 };
