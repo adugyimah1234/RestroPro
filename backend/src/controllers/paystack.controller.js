@@ -4,7 +4,7 @@ const Tenant = require('../models/Tenant');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 const paystack = require('../config/paystack.config');
 
-async function activateTenantSubscription(tenantId, reference, customerCode, durationDays = 30) {
+async function activateTenantSubscription(tenantId, reference, customerCode, durationDays = 30, subscriptionPlanId = null) {
   const startDate = new Date();
   const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
@@ -12,6 +12,9 @@ async function activateTenantSubscription(tenantId, reference, customerCode, dur
   if (tenant) {
     tenant.is_active = 1;
     tenant.subscription_id = reference;
+    if (subscriptionPlanId != null) {
+      tenant.subscription_plan_id = subscriptionPlanId;
+    }
     tenant.payment_customer_id = customerCode || tenant.payment_customer_id;
     tenant.subscription_start = startDate;
     tenant.subscription_end = endDate;
@@ -43,9 +46,29 @@ exports.verifyTransaction = async (req, res) => {
     const { metadata, customer } = verification.data;
     const tenantId = metadata?.tenant_id;
     const customerCode = customer?.customer_code;
+    const subscriptionPlanId = metadata?.subscription_plan_id;
 
     if (tenantId) {
-      await activateTenantSubscription(tenantId, reference, customerCode);
+      let durationDays = 30;
+      if (subscriptionPlanId) {
+        const plan = await SubscriptionPlan.findByPk(subscriptionPlanId);
+        if (plan) {
+          if (plan.duration_unit === 'month') {
+            durationDays = 30 * plan.duration_value;
+          } else if (plan.duration_unit === 'year') {
+            durationDays = 365 * plan.duration_value;
+          } else if (plan.duration_days) {
+            durationDays = plan.duration_days;
+          }
+        }
+      }
+      await activateTenantSubscription(
+        tenantId,
+        reference,
+        customerCode,
+        durationDays,
+        subscriptionPlanId
+      );
     }
 
     return res.status(200).json({
@@ -91,7 +114,13 @@ exports.handleWebhook = async (req, res) => {
             }
           }
 
-          await activateTenantSubscription(tenant_id, reference, paystack_customer_code, durationDays);
+          await activateTenantSubscription(
+            tenant_id,
+            reference,
+            paystack_customer_code,
+            durationDays,
+            subscription_plan_id
+          );
           console.log(`Subscription activated via Paystack webhook for tenant ${tenant_id}`);
         }
         break;

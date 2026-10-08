@@ -100,12 +100,13 @@ export function usePaymentTypes() {
   };
 }
 
-export async function addNewPaymentType(title, isActive, icon) {
+export async function addNewPaymentType(title, isActive, icon, isCash = false) {
   try {
     const response = await ApiClient.post("/settings/payment-types/add", {
       title,
       isActive,
-      icon
+      icon,
+      isCash
     })
     return response;
   } catch (error) {
@@ -133,12 +134,13 @@ export async function togglePaymentType(id, isActive) {
   }
 };
 
-export async function updatePaymentType(id, title, isActive, icon) {
+export async function updatePaymentType(id, title, isActive, icon, isCash = false) {
   try {
     const response = await ApiClient.post(`/settings/payment-types/${id}/update`, {
       title,
       isActive,
-      icon
+      icon,
+      isCash
     })
     return response;
   } catch (error) {

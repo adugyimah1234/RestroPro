@@ -77,6 +77,16 @@ export default function DialogStaffTour() {
             </p>
           </button>
 
+          <button
+            onClick={() => handleStartTour(TOUR_TYPES.ORDERS)}
+            className="p-3.5 rounded-xl border border-restro-border-green bg-restro-gray hover:bg-restro-button-hover text-left transition active:scale-[0.98]"
+          >
+            <h4 className="font-semibold text-sm text-restro-text">{t('tour.orders_tour', 'Orders & Payments')}</h4>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {t('tour.orders_tour_desc', 'Understand item progress, payment, and when an order can be completed.')}
+            </p>
+          </button>
+
           {/* System Overview Tour */}
           <button
             onClick={() => handleStartTour(TOUR_TYPES.NAVIGATION)}

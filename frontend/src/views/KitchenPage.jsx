@@ -10,6 +10,8 @@ import { initSocket } from "../utils/socket";
 import { textToSpeech } from "../utils/textToSpeech";
 import { getUserDetailsInLocalStorage } from "../helpers/UserDetails";
 import { useTheme } from "../contexts/ThemeContext";
+import { IconHelpCircle } from "@tabler/icons-react";
+import { startStaffTour, TOUR_TYPES } from "../helpers/tourGuide";
 
 export default function KitchenPage() {
   const { t } = useTranslation();
@@ -172,8 +174,17 @@ export default function KitchenPage() {
 
   return (
     <Page>
-      <div id="tour-kitchen-header" className="flex items-center gap-6">
+      <div id="tour-kitchen-header" className="flex items-center gap-4">
         <h3 className="text-3xl font-light">{t('kitchen.title')}</h3>
+        <button
+          type="button"
+          onClick={() => startStaffTour(TOUR_TYPES.KITCHEN)}
+          aria-label="Guide to Kitchen Display"
+          title="Guide to Kitchen Display"
+          className="rounded-full p-2 text-gray-500 transition hover:bg-restro-gray hover:text-restro-text"
+        >
+          <IconHelpCircle size={22} stroke={iconStroke} />
+        </button>
         <button
           onClick={btnRefresh}
            className={`dark:rounded-lg border-none b shadow-none transition active:scale-95 text-gray-500 px-2 py-1 flex items-center gap-1 ${theme === 'black' ? 'bg-restro-bg-seconday-dark-mode hover:bg-restro-bg-hover-dark-mode text-white' : 'bg-gray-50 hover:bg-gray-100 rounded-lg'}`}
@@ -276,8 +287,8 @@ export default function KitchenPage() {
                       {/* item title */}
 
                       {/* action */}
-                      {status == "created" && <button onClick={()=>{btnStartPreparingOrderItem(orderItemId)}} className='btn btn-sm border transition active:scale-95 hover:shadow-lg rounded-lg border-restro-border-green text-restro-text hover:bg-restro-button-hover'>{t('kitchen.start_making')}</button>}
-                      {status == "preparing" && <button onClick={()=>{btnCompletePreparingOrderItem(orderItemId)}}  className='btn btn-sm border transition active:scale-95 hover:shadow-lg rounded-lg border-restro-border-green text-restro-text hover:bg-restro-button-hover'>{t('kitchen.complete')}</button>}
+                      {status == "created" && <button data-tour="kitchen-item-action" onClick={()=>{btnStartPreparingOrderItem(orderItemId)}} className='btn btn-sm border transition active:scale-95 hover:shadow-lg rounded-lg border-restro-border-green text-restro-text hover:bg-restro-button-hover'>{t('kitchen.start_making')}</button>}
+                      {status == "preparing" && <button data-tour="kitchen-item-action" onClick={()=>{btnCompletePreparingOrderItem(orderItemId)}}  className='btn btn-sm border transition active:scale-95 hover:shadow-lg rounded-lg border-restro-border-green text-restro-text hover:bg-restro-button-hover'>{t('kitchen.complete')}</button>}
                       {/* action */}
                     </div>
                   })

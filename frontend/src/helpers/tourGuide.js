@@ -9,6 +9,7 @@ export const TOUR_TYPES = {
   SETTINGS: "settings",
   POS: "pos",
   KITCHEN: "kitchen",
+  ORDERS: "orders",
   NAVIGATION: "navigation",
 };
 
@@ -44,6 +45,13 @@ export function startStaffTour(tourType = TOUR_TYPES.SETTINGS, navigate = null) 
       return;
     }
     runKitchenTour();
+  } else if (tourType === TOUR_TYPES.ORDERS) {
+    if (navigate && !window.location.pathname.startsWith("/dashboard/orders")) {
+      navigate("/dashboard/orders");
+      setTimeout(() => runOrdersTour(), 500);
+      return;
+    }
+    runOrdersTour();
   } else if (tourType === TOUR_TYPES.NAVIGATION) {
     runNavigationTour();
   }
@@ -242,8 +250,61 @@ function runKitchenTour() {
       element: "#tour-kitchen-orders",
       popover: {
         title: "Live Order Cards",
-        description: "Update order status from 'Preparing' to 'Complete' as food is cooked and ready to serve.",
+        description: "Tap Start making when cooking begins, then Complete when that item is ready. Completed items leave this kitchen queue; payment and closing the order happen separately on the Orders page.",
         side: "bottom",
+        align: "start",
+      },
+    },
+    {
+      element: '[data-tour="kitchen-item-action"]',
+      popover: {
+        title: "Item-level progress",
+        description: "Each button updates one food item. Start making changes it to Preparing; Complete marks it ready. Refresh or the live update keeps the queue current.",
+        side: "left",
+        align: "start",
+      },
+    },
+  ];
+
+  const driverObj = createDriverObj(steps);
+  driverObj.drive();
+}
+
+function runOrdersTour() {
+  const steps = [
+    {
+      element: "#tour-orders-header",
+      popover: {
+        title: "Orders workspace",
+        description: "This page tracks active orders, their payment state, and each item's kitchen progress.",
+        side: "bottom",
+        align: "start",
+      },
+    },
+    {
+      element: "#tour-orders-list",
+      popover: {
+        title: "Order and item statuses",
+        description: "The status next to a food item is separate from the overall order. Use the item's menu to mark it Preparing, Completed (ready), or Delivered.",
+        side: "top",
+        align: "start",
+      },
+    },
+    {
+      element: '[data-tour="orders-item-action"]',
+      popover: {
+        title: "Update a food item",
+        description: "Open this menu to update only this item. Kitchen staff can also make the same preparation updates from Kitchen Display.",
+        side: "left",
+        align: "start",
+      },
+    },
+    {
+      element: '[data-tour="orders-order-actions"]',
+      popover: {
+        title: "Close or pay an order",
+        description: "Complete is for orders already paid. For an unpaid order, choose Pay & Complete, select a payment method, then confirm to create the invoice and close it.",
+        side: "left",
         align: "start",
       },
     },

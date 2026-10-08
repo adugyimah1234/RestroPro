@@ -1,252 +1,281 @@
-const { getMySqlPromiseConnection } = require("../config/mysql.db")
+const { Op } = require('sequelize');
+const {
+  Invoice,
+  Order,
+  OrderItem,
+  Customer,
+  StoreTable,
+  MenuItem,
+  MenuItemVariant,
+  MenuItemAddon,
+  Tax,
+} = require('../models');
 
-exports.getInvoicesDB = async (type, from, to, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
-    try {
+function dateRange(type, from, to) {
+  const now = new Date();
+  const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const start = startOfDay(now);
+  const nextDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
 
-        const {filter, params} = getFilterConditionForInvoices(type, from, to, tenantId)
-
-        const sql = `
-        SELECT
-            o.invoice_id,
-            o.id AS order_id,
-            i.created_at,
-            i.sub_total,
-            i.tax_total,
-            i.service_charge_total,
-            i.total,
-            o.table_id,
-            st.table_title,
-            st.\`floor\`,
-            o.payment_status,
-            o.token_no,
-            o.delivery_type,
-            o.customer_type,
-            o.customer_id,
-            c.\`name\`,
-            c.email,
-            i.payment_type_id
-        FROM
-            orders o
-            INNER JOIN invoices i ON o.invoice_id = i.id AND i.tenant_id = o.tenant_id
-            LEFT JOIN customers c ON o.customer_id = c.phone AND c.tenant_id = o.tenant_id
-            LEFT JOIN store_tables st ON o.table_id = st.id
-        WHERE ${filter}
-        ORDER BY
-            i.created_at DESC
-        `;
-
-        const [results] = await conn.query(sql, params);
-        return results;
-    } catch (error) {
-        console.error(error);
-        throw error;
-    } finally {
-      conn.release();
-  }
-};
-const getFilterConditionForInvoices = (type, from, to, tenantId) => {
-    const params = [];
-    let filter = '';
-
-    switch (type) {
-        case 'custom': {
-            params.push(from, to, tenantId);
-            filter = `DATE(i.created_at) >= ? AND DATE(i.created_at) <= ? AND i.tenant_id = ?`;
-            break;
-        }
-        case 'today': {
-            params.push(tenantId);
-            filter = `DATE(i.created_at) = CURDATE() AND i.tenant_id = ?`;
-            break;
-        }
-        case 'this_month': {
-          params.push(tenantId);
-            filter = `YEAR(i.created_at) = YEAR(NOW()) AND MONTH(i.created_at) = MONTH(NOW()) AND i.tenant_id = ?`;
-            break;
-        }
-        case 'last_month': {
-          params.push(tenantId);
-            filter = `DATE(i.created_at) >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND DATE(i.created_at) <= CURDATE() AND i.tenant_id = ?`;
-            break;
-        }
-        case 'last_7days': {
-          params.push(tenantId);
-            filter = `DATE(i.created_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND DATE(i.created_at) <= CURDATE() AND i.tenant_id = ?`;
-            break;
-        }
-        case 'yesterday': {
-          params.push(tenantId);
-            filter = `DATE(i.created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND i.tenant_id = ?`;
-            break;
-        }
-        case 'tomorrow': {
-          params.push(tenantId);
-            filter = `DATE(i.created_at) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND i.tenant_id = ?`;
-            break;
-        }
-        default: {
-          params.push(tenantId);
-            filter = 'i.tenant_id = ?';
-        }
+  switch (type) {
+    case 'custom': {
+      const startDate = new Date(`${from}T00:00:00`);
+      const endDate = new Date(`${to}T00:00:00`);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate) {
+        throw new RangeError('Invalid invoice date range.');
+      }
+      return { [Op.gte]: startDate, [Op.lt]: nextDay(endDate) };
     }
-
-    return { params, filter };
+    case 'today':
+      return { [Op.gte]: start, [Op.lt]: nextDay(start) };
+    case 'this_month':
+      return {
+        [Op.gte]: new Date(now.getFullYear(), now.getMonth(), 1),
+        [Op.lt]: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+      };
+    case 'last_month':
+      return {
+        [Op.gte]: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+        [Op.lt]: new Date(now.getFullYear(), now.getMonth(), 1),
+      };
+    case 'last_7days': {
+      const sevenDaysAgo = new Date(start);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return { [Op.gte]: sevenDaysAgo, [Op.lt]: nextDay(start) };
+    }
+    case 'yesterday': {
+      const yesterday = new Date(start);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { [Op.gte]: yesterday, [Op.lt]: start };
+    }
+    case 'tomorrow': {
+      const tomorrow = nextDay(start);
+      return { [Op.gte]: tomorrow, [Op.lt]: nextDay(tomorrow) };
+    }
+    default:
+      return undefined;
+  }
 }
 
-exports.searchInvoicesDB = async (search, tenantId) => {
-  const conn = await getMySqlPromiseConnection();
-  try {
+function flattenInvoiceOrder(order) {
+  const row = order.get({ plain: true });
+  const invoice = row.InvoiceRecord || {};
+  const customer = row.Customer || {};
+  const table = row.StoreTable || {};
 
-    const sql = `
-    SELECT
-      o.invoice_id,
-      o.id AS order_id,
-      i.created_at,
-      i.sub_total,
-      i.tax_total,
-      i.service_charge_total,
-      i.total,
-      o.table_id,
-      st.table_title,
-      st.\`floor\`,
-      o.payment_status,
-      o.token_no,
-      o.delivery_type,
-      o.customer_type,
-      o.customer_id,
-      c.\`name\`,
-      c.email,
-      i.payment_type_id
-    FROM
-      orders o
-      INNER JOIN invoices i ON o.invoice_id = i.id AND i.tenant_id = o.tenant_id
-      LEFT JOIN customers c ON o.customer_id = c.phone AND c.tenant_id = o.tenant_id
-      LEFT JOIN store_tables st ON o.table_id = st.id
-    WHERE (o.invoice_id = ? OR o.id = ? OR o.customer_id LIKE ? OR c.\`name\` LIKE ?) AND i.tenant_id = ?
-    ORDER BY
-      i.created_at DESC
-    LIMIT 20
-    `;
+  return {
+    invoice_id: row.invoice_id,
+    order_id: row.id,
+    created_at: invoice.created_at,
+    sub_total: invoice.sub_total,
+    tax_total: invoice.tax_total,
+    service_charge_total: invoice.service_charge_total,
+    total: invoice.total,
+    table_id: row.table_id,
+    table_title: table.table_title,
+    floor: table.floor,
+    payment_status: row.payment_status,
+    token_no: row.token_no,
+    delivery_type: row.delivery_type,
+    customer_type: row.customer_type,
+    customer_id: row.customer_id,
+    name: customer.name,
+    email: customer.email,
+    payment_type_id: invoice.payment_type_id,
+  };
+}
 
-    const [results] = await conn.query(sql, [search, search, search, `%${search}%`, tenantId]);
-    return results;
-  } catch (error) {
-    console.error(error);
-    throw error;
-  } finally {
-    conn.release();
-  }
+async function findInvoiceOrderRows({ tenantId, invoiceWhere, orderWhere = {}, limit }) {
+  const orders = await Order.findAll({
+    where: { tenant_id: tenantId, invoice_id: { [Op.ne]: null }, ...orderWhere },
+    include: [
+      {
+        model: Invoice,
+        as: 'InvoiceRecord',
+        attributes: ['id', 'created_at', 'sub_total', 'tax_total', 'service_charge_total', 'total', 'payment_type_id'],
+        where: { tenant_id: tenantId, ...invoiceWhere },
+        required: true,
+      },
+      {
+        model: Customer,
+        as: 'Customer',
+        attributes: ['name', 'email'],
+        where: { tenant_id: tenantId },
+        required: false,
+      },
+      {
+        model: StoreTable,
+        as: 'StoreTable',
+        attributes: ['table_title', 'floor'],
+        required: false,
+      },
+    ],
+    attributes: [
+      'id',
+      'invoice_id',
+      'table_id',
+      'payment_status',
+      'token_no',
+      'delivery_type',
+      'customer_type',
+      'customer_id',
+    ],
+    order: [[{ model: Invoice, as: 'InvoiceRecord' }, 'created_at', 'DESC']],
+    ...(limit ? { limit } : {}),
+  });
+
+  return orders.map(flattenInvoiceOrder);
+}
+
+exports.getInvoicesDB = async (type, from, to, tenantId) => {
+  const createdAt = dateRange(type, from, to);
+  return findInvoiceOrderRows({
+    tenantId,
+    invoiceWhere: createdAt ? { created_at: createdAt } : {},
+  });
 };
 
+exports.searchInvoicesDB = async (search, tenantId) => {
+  return findInvoiceOrderRows({
+    tenantId,
+    invoiceWhere: {},
+    orderWhere: {
+      [Op.or]: [
+        { invoice_id: search },
+        { id: search },
+        { customer_id: { [Op.like]: `${search}%` } },
+        { '$Customer.name$': { [Op.like]: `%${search}%` } },
+      ],
+    },
+    limit: 20,
+  });
+};
 
-exports.getInvoiceOrdersDB = async (orderIdsToFindSummary) => {
-  const conn = await getMySqlPromiseConnection();
-    try {
+exports.getInvoiceOrdersDB = async (orderIds, tenantId, invoiceId) => {
+  const kitchenOrders = await Order.findAll({
+    where: {
+      id: { [Op.in]: orderIds },
+      tenant_id: tenantId,
+      invoice_id: invoiceId,
+      status: { [Op.ne]: 'cancelled' },
+    },
+    include: [
+      {
+        model: Customer,
+        as: 'Customer',
+        attributes: [['name', 'customer_name']],
+        where: { tenant_id: tenantId },
+        required: false,
+      },
+      {
+        model: StoreTable,
+        as: 'StoreTable',
+        attributes: [['table_title', 'table_title'], ['floor', 'floor']],
+        required: false,
+      },
+    ],
+    attributes: [
+      'id',
+      'date',
+      'delivery_type',
+      'customer_type',
+      'customer_id',
+      'table_id',
+      'status',
+      'payment_status',
+      'token_no',
+    ],
+  });
 
-      const sql = `
-      SELECT
-        o.id,
-        o.date,
-        o.delivery_type,
-        o.customer_type,
-        o.customer_id,
-        c. \`name\` AS customer_name,
-        o.table_id,
-        st.table_title,
-        st. \`floor\`,
-        o.status,
-        o.payment_status,
-        o.token_no
-      FROM
-        orders o
-        LEFT JOIN customers c ON o.customer_id = c.phone AND c.tenant_id = o.tenant_id
-        LEFT JOIN store_tables st ON o.table_id = st.id
-      WHERE
-        o.status NOT IN ('cancelled')
-        AND o.id IN (${orderIdsToFindSummary})
-      `;
+  const orderIdsFound = kitchenOrders.map((order) => order.id);
+  if (orderIdsFound.length === 0) {
+    return { kitchenOrders: [], kitchenOrdersItems: [], addons: [] };
+  }
 
-      const [kitchenOrders] = await conn.query(sql);
+  const kitchenOrdersItems = await OrderItem.findAll({
+    where: {
+      order_id: { [Op.in]: orderIdsFound },
+      tenant_id: tenantId,
+      status: { [Op.ne]: 'cancelled' },
+    },
+    include: [
+      {
+        model: MenuItem,
+        as: 'MenuItem',
+        attributes: [['title', 'item_title'], 'price', 'tax_id'],
+        required: false,
+        include: [
+          {
+            model: Tax,
+            as: 'Tax',
+            attributes: [['title', 'tax_title'], ['rate', 'tax_rate'], ['type', 'tax_type']],
+            required: false,
+          },
+        ],
+      },
+      {
+        model: MenuItemVariant,
+        as: 'MenuItemVariant',
+        attributes: [['title', 'variant_title'], ['price', 'variant_price']],
+        required: false,
+      },
+    ],
+    attributes: ['id', 'order_id', 'item_id', 'variant_id', 'price', 'quantity', 'status', 'date', 'addons', 'notes'],
+  });
 
-      let kitchenOrdersItems = [];
-      let addons = [];
+  const addonIds = [...new Set(kitchenOrdersItems.flatMap((item) => {
+    if (!item.addons) return [];
+    const value = typeof item.addons === 'string' ? JSON.parse(item.addons) : item.addons;
+    return Array.isArray(value) ? value.map(Number).filter(Number.isInteger) : [];
+  }))];
+  const addons = addonIds.length
+    ? await MenuItemAddon.findAll({
+      where: { id: { [Op.in]: addonIds }, tenant_id: tenantId },
+      attributes: ['id', 'item_id', 'title', 'price'],
+    })
+    : [];
 
-      if(kitchenOrders.length > 0) {
-        const orderIds = kitchenOrders.map(o=>o.id).join(",");
-        const sql2 = `
-        SELECT
-          oi.id,
-          oi.order_id,
-          oi.item_id,
-          mi.title AS item_title,
-          oi.variant_id,
-          miv.title as variant_title,
-          miv.price as variant_price,
-          mi.price,
-          mi.tax_id,
-          t.title as tax_title,
-          t.rate as tax_rate,
-          t.type as tax_type,
-          oi.quantity,
-          oi.status,
-          oi.date,
-          oi.addons,
-          oi.notes
-        FROM
-          order_items oi
-          LEFT JOIN menu_items mi ON oi.item_id = mi.id
-          LEFT JOIN menu_item_variants miv ON oi.item_id = miv.item_id AND oi.variant_id = miv.id
-          LEFT JOIN taxes t ON mi.tax_id = t.id
-
-        WHERE oi.order_id IN (${orderIds}) AND oi.status NOT IN ('cancelled')
-        `
-        const [kitchenOrdersItemsResult] = await conn.query(sql2);
-        kitchenOrdersItems = kitchenOrdersItemsResult;
-
-        const addonIds = [...new Set([...kitchenOrdersItems.flatMap((o)=>o.addons?JSON.parse(o?.addons):[])])].join(",");
-        const [addonsResult] = addonIds ? await conn.query(`SELECT id, item_id, title, price FROM menu_item_addons WHERE id IN (${addonIds});`):[]
-        addons = addonsResult;
-      }
+  return {
+    kitchenOrders: kitchenOrders.map((order) => {
+      const row = order.get({ plain: true });
+      return {
+        ...row,
+        customer_name: row.Customer?.customer_name,
+        table_title: row.StoreTable?.table_title,
+        floor: row.StoreTable?.floor,
+      };
+    }),
+    kitchenOrdersItems: kitchenOrdersItems.map((item) => {
+      const row = item.get({ plain: true });
+      const menuItem = row.MenuItem || {};
+      const tax = menuItem.Tax || {};
+      const variant = row.MenuItemVariant || {};
+      const itemAddonIds = row.addons
+        ? (typeof row.addons === 'string' ? JSON.parse(row.addons) : row.addons)
+          .map(Number)
+          .filter(Number.isInteger)
+        : [];
 
       return {
-        kitchenOrders,
-        kitchenOrdersItems,
-        addons
-      }
-
-    } catch (error) {
-      console.error(error);
-      throw error;
-    } finally {
-      conn.release();
-    }
+        ...row,
+        item_title: menuItem.item_title,
+        variant_title: variant.variant_title,
+        variant_price: variant.variant_price,
+        price: row.price ?? menuItem.price,
+        tax_title: tax.tax_title,
+        tax_rate: tax.tax_rate,
+        tax_type: tax.tax_type,
+        addons: addons.filter((addon) => itemAddonIds.includes(addon.id)),
+      };
+    }),
+    addons: addons.map((addon) => addon.get({ plain: true })),
   };
+};
 
-  exports.getInvoiceByIdDB = async (id, tenantId) => {
-    const conn = await getMySqlPromiseConnection();
-      try {
-
-          const sql = `
-          SELECT
-              id,
-              created_at,
-              sub_total,
-              tax_total,
-              service_charge_total,
-              total,
-              payment_type_id
-          FROM
-              invoices i
-          WHERE id = ? AND tenant_id = ?
-          `;
-
-          const [results] = await conn.query(sql, [id, tenantId]);
-          return results[0];
-      } catch (error) {
-          console.error(error);
-          throw error;
-      } finally {
-        conn.release();
-    }
-  };
+exports.getInvoiceByIdDB = async (id, tenantId) => {
+  return Invoice.findOne({
+    where: { id, tenant_id: tenantId },
+    attributes: ['id', 'created_at', 'sub_total', 'tax_total', 'service_charge_total', 'total', 'payment_type_id'],
+    raw: true,
+  });
+};

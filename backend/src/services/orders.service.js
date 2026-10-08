@@ -1,5 +1,6 @@
 const { CONFIG } = require("../config");
-const { Order, OrderItem, MenuItem, MenuItemVariant, Customer, StoreTable, MenuItemAddon, Invoice, InvoiceSequence, sequelize, Op } = require("../models");
+const { Order, OrderItem, MenuItem, MenuItemVariant, Customer, StoreTable, MenuItemAddon, Tax, Invoice, InvoiceSequence, Tenant, sequelize, Op } = require("../models");
+const { recordInvoice, writeActivity } = require("./accountability.service");
 
 exports.getOrdersDB = async (tenantId, branchId) => {
   try {
@@ -104,24 +105,57 @@ exports.getOrdersDB = async (tenantId, branchId) => {
 
 exports.updateOrderItemStatusDB = async (orderItemId, status, tenantId, branchId) => {
   try {
-    await OrderItem.update(
-      { status: status },
-      { where: { id: orderItemId, tenant_id: tenantId, branch_id: branchId } }
+    const orderItem = await OrderItem.findOne({
+      where: { id: orderItemId, tenant_id: tenantId },
+      attributes: ['id', 'order_id', 'status'],
+    });
+    if (!orderItem) return false;
+
+    const parentOrder = await Order.findOne({
+      where: {
+        id: orderItem.order_id,
+        tenant_id: tenantId,
+        ...(branchId == null ? {} : { branch_id: branchId }),
+      },
+      attributes: ['id'],
+    });
+    if (!parentOrder) return false;
+    if (orderItem.status === status) return true;
+
+    const [updatedCount] = await OrderItem.update(
+      { status },
+      { where: { id: orderItem.id, tenant_id: tenantId } }
     );
-    return;
+    return updatedCount > 0;
   } catch (error) {
     console.error(error);
     throw error;
   }
 };
 
-exports.cancelOrderDB = async (orderIds, tenantId, branchId) => {
+exports.cancelOrderDB = async (orderIds, tenantId, branchId, actor = {}) => {
   try {
-    await Order.update(
-      { status: 'cancelled' },
-      { where: { id: { [Op.in]: orderIds }, tenant_id: tenantId, branch_id: branchId } }
-    );
-    return;
+    return await sequelize.transaction(async (transaction) => {
+      const [cancelledCount] = await Order.update(
+        { status: 'cancelled' },
+        {
+          where: { id: { [Op.in]: orderIds }, tenant_id: tenantId, branch_id: branchId },
+          transaction,
+        }
+      );
+      if (cancelledCount > 0) {
+        await writeActivity({
+          tenant_id: tenantId,
+          branch_id: branchId ?? null,
+          actor_username: actor.username || null,
+          actor_name: actor.name || actor.username || null,
+          action: 'orders_cancelled',
+          entity_type: 'order',
+          details: { orderIds: orderIds.slice(0, 100), count: cancelledCount },
+        }, transaction);
+      }
+      return cancelledCount;
+    });
   } catch (error) {
     console.error(error);
     throw error;
@@ -269,6 +303,7 @@ exports.getOrdersPaymentSummaryDB = async (orderIdsToFindSummary, tenantId, bran
           'order_id',
           'item_id',
           'variant_id',
+          'price',
           'quantity',
           'status',
           'date',
@@ -297,13 +332,22 @@ exports.getOrdersPaymentSummaryDB = async (orderIdsToFindSummary, tenantId, bran
   }
 };
 
-exports.createInvoiceDB = async (subtotal, taxTotal, serviceChargeTotal, total, date, selectedPaymentType, tenantId, branchId) => {
+exports.createInvoiceDB = async (subtotal, taxTotal, serviceChargeTotal, total, date, selectedPaymentType, tenantId, branchId, actor = {}) => {
   const t = await sequelize.transaction();
   try {
+    const tenant = await Tenant.findByPk(tenantId, {
+      attributes: ['id'],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} was not found while creating an invoice.`);
+    }
+
     let invoiceId = 0;
 
     const invoiceSequence = await InvoiceSequence.findOne({
-      where: { tenant_id: tenantId, branch_id: branchId },
+      where: { tenant_id: tenantId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -322,13 +366,24 @@ exports.createInvoiceDB = async (subtotal, taxTotal, serviceChargeTotal, total, 
       created_at: date,
       payment_type_id: selectedPaymentType,
       tenant_id: tenantId,
-      branch_id: branchId
+      branch_id: branchId ?? null,
+      created_by: actor.username || null,
     }, { transaction: t });
+
+    if (actor.username) {
+      await recordInvoice({
+        tenantId,
+        branchId,
+        username: actor.username,
+        name: actor.name,
+        invoiceId,
+        paymentTypeId: selectedPaymentType,
+      }, t);
+    }
 
     await InvoiceSequence.upsert(
       {
         tenant_id: tenantId,
-        branch_id: branchId,
         sequence_no: invoiceId,
       },
       { transaction: t }

@@ -1,176 +1,117 @@
-const { Order, OrderItem, MenuItem, MenuItemVariant, MenuItemAddon, Tax, Customer, StoreTable, Invoice, InvoiceSequence, PaymentType, QrOrder, QrOrderItem, MenuItemRecipe, InventoryItem, sequelize, Op } = require("../models");
-const { getMySqlPromiseConnection } = require("../config/mysql.db");
+const { Order, OrderItem, MenuItem, MenuItemVariant, MenuItemAddon, Tax, Customer, StoreTable, Invoice, InvoiceSequence, PaymentType, QrOrder, QrOrderItem, MenuItemRecipe, InventoryItem, InventoryLog, TokenSequence, Tenant, sequelize, Op } = require("../models");
 
-exports.createOrderDB = async (tenantId, cartItems, deliveryType, customerType, customerId, tableId, paymentStatus = 'pending', invoiceId=null, username = null) => {
-  const conn = await getMySqlPromiseConnection();
-
-  try {
-    // start transaction
-    await conn.beginTransaction();
-
-    // step 1: get current token no. from table token_sequences
-    // if no data found give 0
-    let tokenNo = 0;
-
-    const [tokenSequence] = await conn.query("SELECT sequence_no, DATE(last_updated) as last_updated, DATE(NOW()) as todays_date FROM token_sequences WHERE tenant_id = ? LIMIT 1 FOR UPDATE", [tenantId]);
-    tokenNo = tokenSequence[0]?.sequence_no || 0;
-    const tokenLastUpdated = tokenSequence[0]?.last_updated ? new Date(tokenSequence[0]?.last_updated).toISOString().substring(0, 10) : new Date().toISOString().substring(0,10);
-
-    const today = new Date(tokenSequence[0]?.todays_date || Date.now()).toISOString().substring(0,10);
-
-    console.log(tokenLastUpdated, today);
-
-
-
-    if(tokenLastUpdated != today) {
-      tokenNo = 0;
+exports.createOrderDB = async (tenantId, cartItems, deliveryType, customerType, customerId, tableId, paymentStatus = 'pending', invoiceId=null, username = null, branchId = null) => {
+  return sequelize.transaction(async (transaction) => {
+    const tenant = await Tenant.findByPk(tenantId, {
+      attributes: ['id', [sequelize.fn('CURDATE'), 'today']],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} was not found while creating an order.`);
     }
 
-    // step 2: increase the token no. by +1
+    const today = String(tenant.get('today')).slice(0, 10);
+    const tokenSequence = await TokenSequence.findOne({
+      where: { tenant_id: tenantId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    let tokenNo = tokenSequence && String(tokenSequence.last_updated).slice(0, 10) === today
+      ? Number(tokenSequence.sequence_no || 0)
+      : 0;
     tokenNo += 1;
 
-    // step 3: save data to orders table
-    const [orderResult] = await conn.query(`INSERT INTO orders (delivery_type, customer_type, customer_id, table_id, token_no, payment_status, invoice_id, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [deliveryType, customerType, customerId, tableId, tokenNo, paymentStatus || 'pending', invoiceId || null, tenantId]);
+    const order = await Order.create({
+      delivery_type: deliveryType,
+      customer_type: customerType,
+      customer_id: customerId,
+      table_id: tableId,
+      token_no: tokenNo,
+      payment_status: paymentStatus || 'pending',
+      invoice_id: invoiceId || null,
+      tenant_id: tenantId,
+      branch_id: branchId,
+    }, { transaction });
 
-    const orderId = orderResult.insertId;
+    await OrderItem.bulkCreate(cartItems.map((item) => ({
+      order_id: order.id,
+      item_id: item.id,
+      variant_id: item.variant_id,
+      price: item.price,
+      quantity: item.quantity,
+      notes: item.notes,
+      addons: item?.addons_ids?.length > 0 ? JSON.stringify(item.addons_ids) : null,
+      tenant_id: tenantId,
+      branch_id: branchId,
+    })), { transaction });
 
-    // step 4: save data to order_items
-    const sqlOrderItems = `
-    INSERT INTO order_items
-    (order_id, item_id, variant_id, price, quantity, notes, addons, tenant_id)
-    VALUES ?
-    `;
+    await TokenSequence.upsert({
+      tenant_id: tenantId,
+      sequence_no: tokenNo,
+      last_updated: today,
+    }, { transaction });
 
-    await conn.query(sqlOrderItems, [cartItems.map((item)=>[orderId, item.id, item.variant_id, item.price, item.quantity, item.notes, item?.addons_ids?.length > 0 ? JSON.stringify(item.addons_ids):null, tenantId ])]);
+    const inventoryUsage = new Map();
+    for (const item of cartItems) {
+      for (const recipe of item.recipeItems || []) {
+        const variantId = Number(recipe.variant_id || 0);
+        if (variantId && variantId !== Number(item.variant_id)) continue;
 
-    // step 6: Save updated token no. to table token_sequences
-    await conn.query("INSERT INTO token_sequences ( sequence_no, last_updated, tenant_id) VALUES (?, NOW(), ?) ON DUPLICATE KEY UPDATE sequence_no = VALUES(sequence_no), last_updated = VALUES(last_updated) ;", [tokenNo, tenantId]);
+        const addonId = Number(recipe.addon_id || 0);
+        const selectedAddons = (item.addons_ids || []).map(Number);
+        if (addonId && !selectedAddons.includes(addonId)) continue;
 
-     // Track Recipe/Inventory Item Usuage
-     const inventoryUsage = {};
-
-     cartItems.forEach(item => {
-       item.recipeItems.forEach(recipe => {
-         const { inventory_item_id, recipe_quantity, ingredient_title, unit, variant_id, addon_id } = recipe;
-
-         // Skip if variant-specific and doesn't match
-         if (variant_id && variant_id != item.variant_id) return;
-
-         // Skip if addon-specific and not included
-         if (addon_id && !item.addons_ids?.map(String).includes(String(addon_id))) return;
-
-         const invId = inventory_item_id;
-         const qtyNeeded = parseFloat(recipe_quantity) * item.quantity;
-
-         if (!inventoryUsage[invId]) {
-           inventoryUsage[invId] = {
-             ingredient_title,
-             unit,
-             total_quantity: 0
-           };
-         }
-
-         inventoryUsage[invId].total_quantity += qtyNeeded;
-       });
-     });
-
-
-      // Step 7: Update inventory_items and insert into inventory_logs
-      const updateInventorySql = `
-        UPDATE inventory_items
-        SET quantity = ?, status = ?
-        WHERE id = ? AND tenant_id = ?
-      `;
-
-      const insertLogSql = `
-        INSERT INTO inventory_logs
-        (tenant_id, inventory_item_id, type, quantity_change, previous_quantity, new_quantity, note, created_by)
-        VALUES (?, ?, 'OUT', ?, ?, ?, ?, ?)
-      `;
-
-      for (const [inventoryItemId, usage] of Object.entries(inventoryUsage)) {
-        const invId = parseInt(inventoryItemId);
-        const qtyUsed = parseFloat(usage.total_quantity);
-
-        const [[currentItem]] = await conn.query(
-          'SELECT quantity, min_quantity_threshold FROM inventory_items WHERE id = ? AND tenant_id = ? FOR UPDATE',
-          [invId, tenantId]
-        );
-
-        const previousQty = parseFloat(currentItem?.quantity || 0);
-        const newQty = previousQty - qtyUsed;
-        const minQuantityThreshold = parseFloat(currentItem?.min_quantity_threshold || 0);
-
-        // Insert into inventory_logs
-        await conn.query(insertLogSql, [
-          tenantId,
-          invId,
-          qtyUsed,
-          previousQty,
-          newQty,
-          invoiceId ? `Auto deduction for recipe usage in invoice #${invoiceId}` : 'Auto deduction for recipe usage in order',
-          username
-        ]);
-
-        let status = 'out';
-        if (newQty > 0 && newQty <= minQuantityThreshold) {
-          status = 'low';
-        } else if (newQty > minQuantityThreshold) {
-          status = 'in';
+        const inventoryItemId = Number(recipe.inventory_item_id);
+        const quantity = Number(recipe.recipe_quantity) * Number(item.quantity);
+        if (!Number.isInteger(inventoryItemId) || !Number.isFinite(quantity) || quantity < 0) {
+          throw new Error('Order contains an invalid inventory recipe quantity.');
         }
 
-        // Update inventory_items
-        await conn.query(updateInventorySql, [newQty, status, invId, tenantId]);
+        inventoryUsage.set(inventoryItemId, (inventoryUsage.get(inventoryItemId) || 0) + quantity);
+      }
+    }
 
-        // if (newQty <= 0) {
-        //   const [[recipeCheck]] = await conn.query(
-        //     `SELECT quantity
-        //      FROM menu_item_recipes
-        //      WHERE inventory_item_id = ? AND variant_id = 0 AND addon_id = 0 AND tenant_id = ?`,
-        //     [invId, tenantId]
-        //   );
+    for (const [inventoryItemId, quantityUsed] of inventoryUsage) {
+      const inventoryWhere = { id: inventoryItemId, tenant_id: tenantId };
+      if (branchId != null) inventoryWhere.branch_id = branchId;
 
-        //   if ((recipeCheck && newQty < parseFloat(recipeCheck.quantity)) || newQty <= 0) {
-        //     const [menuItemsToDisable] = await conn.query(
-        //       `SELECT DISTINCT mi.id
-        //        FROM menu_items mi
-        //        JOIN menu_item_recipes mir ON mi.id = mir.menu_item_id
-        //        WHERE mir.inventory_item_id = ?
-        //          AND mir.variant_id = 0
-        //          AND mir.addon_id = 0
-        //          AND mi.tenant_id = ?`,
-        //       [invId, tenantId]
-        //     );
-
-        //     if (menuItemsToDisable.length > 0) {
-        //       const menuItemIds = menuItemsToDisable.map(row => row.id);
-        //       if (menuItemIds.length > 0) {
-        //         await conn.query(
-        //           `UPDATE menu_items
-        //            SET is_enabled = 0
-        //            WHERE tenant_id = ? AND id IN (?)`,
-        //           [tenantId, menuItemIds]
-        //         );
-        //       }
-        //     }
-        //   }
-        // }
+      const inventoryItem = await InventoryItem.findOne({
+        where: inventoryWhere,
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!inventoryItem) {
+        throw new Error(`Inventory item ${inventoryItemId} was not found for this tenant and branch.`);
       }
 
-    // step 7: commit transaction / if any exception occurs then rollback
-    await conn.commit();
+      const previousQuantity = Number(inventoryItem.quantity);
+      const newQuantity = previousQuantity - quantityUsed;
+      const minimumThreshold = Number(inventoryItem.min_quantity_threshold || 0);
+      const status = newQuantity <= 0 ? 'out' : newQuantity <= minimumThreshold ? 'low' : 'in';
 
-    return {
-      tokenNo,
-      orderId
+      await InventoryLog.create({
+        tenant_id: tenantId,
+        branch_id: branchId,
+        inventory_item_id: inventoryItemId,
+        type: 'OUT',
+        quantity_change: quantityUsed,
+        previous_quantity: previousQuantity,
+        new_quantity: newQuantity,
+        note: invoiceId
+          ? `Auto deduction for recipe usage in invoice #${invoiceId}`
+          : 'Auto deduction for recipe usage in order',
+        created_by: username,
+      }, { transaction });
+
+      await inventoryItem.update({
+        quantity: newQuantity,
+        status,
+      }, { transaction });
     }
-  } catch (error) {
-    console.error(error);
-    await conn.rollback();
-    throw error;
-  } finally {
-    conn.end();
-  }
+
+    return { tokenNo, orderId: order.id };
+  });
 };
 
 exports.getPOSQROrdersCountDB = async (tenantId) => {

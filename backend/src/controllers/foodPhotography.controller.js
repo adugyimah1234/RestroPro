@@ -1,43 +1,22 @@
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/genai");
+const { GoogleGenAI } = require("@google/genai");
 const { getSuperAdminSettings } = require("../services/superadminSettings.service");
 
 let genAIInstance = null;
-let menuParserModelInstance = null;
-let imageGenerationModelInstance = null;
+let activeApiKey = null;
 
-const safetySettings = [
-    {
-        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    {
-        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    {
-        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    {
-        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-];
+async function getGenerativeAIClient() {
+    const settings = await getSuperAdminSettings();
+    const GEMINI_API_KEY = settings ? settings.gemini_api_key : null;
 
-async function getGenerativeAIModels() {
-    if (!genAIInstance || !menuParserModelInstance || !imageGenerationModelInstance) {
-        const settings = await getSuperAdminSettings();
-        const GEMINI_API_KEY = settings ? settings.gemini_api_key : null;
-
-        if (!GEMINI_API_KEY) {
-            throw new Error("Gemini API Key is not configured by Super Admin.");
-        }
-
-        genAIInstance = new GoogleGenerativeAI(GEMINI_API_KEY);
-        menuParserModelInstance = genAIInstance.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
-        imageGenerationModelInstance = genAIInstance.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings }); // Using flash for speed, can be pro for quality
+    if (!GEMINI_API_KEY) {
+        throw new Error("Gemini API Key is not configured by Super Admin.");
     }
-    return { menuParserModel: menuParserModelInstance, imageGenerationModel: imageGenerationModelInstance };
+
+    if (activeApiKey !== GEMINI_API_KEY || !genAIInstance) {
+        activeApiKey = GEMINI_API_KEY;
+        genAIInstance = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    }
+    return genAIInstance;
 }
 
 const styleModifiers = {
@@ -47,15 +26,20 @@ const styleModifiers = {
 };
 
 async function parseMenu(menuText) {
-    const { menuParserModel } = await getGenerativeAIModels();
+    const genAI = await getGenerativeAIClient();
     const prompt = `Parse the following menu text and extract the dishes. Return a JSON array of objects with 'name' and 'description'.
     Menu Text:
     ${menuText}`;
 
     try {
-        const result = await menuParserModel.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+        const response = await genAI.models.generateContent({
+            model: "gemini-1.5-flash",
+            contents: prompt,
+        });
+        const text = response.text;
+        if (!text) {
+            throw new Error("Gemini returned no menu text.");
+        }
         // Attempt to parse the text as JSON. The model might return extra text, so we need to be careful.
         const jsonMatch = text.match(/\[.*\]/s);
         if (jsonMatch) {
@@ -69,15 +53,16 @@ async function parseMenu(menuText) {
 }
 
 async function generateFoodImage(dishName, dishDescription, style) {
-    const { imageGenerationModel } = await getGenerativeAIModels();
+    const genAI = await getGenerativeAIClient();
     const stylePrompt = styleModifiers[style] || styleModifiers['Bright / Modern']; // Default to Bright / Modern
 
     const prompt = `Professional food photography of '${dishName}'. Description: ${dishDescription}. ${stylePrompt} High-end plating, michelin star presentation, 8k resolution, crisp details.`;
 
     try {
-        const result = await imageGenerationModel.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+        await genAI.models.generateContent({
+            model: "gemini-1.5-flash",
+            contents: prompt,
+        });
         // Assuming the model returns a direct image URL or base64 encoded image in its text response
         // For now, let's assume it returns a URL or a placeholder indicating success.
         // In a real scenario, you'd need to extract the image data/URL from the model's response.

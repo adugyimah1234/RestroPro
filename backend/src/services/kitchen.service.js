@@ -1,6 +1,6 @@
 const { Order, OrderItem, MenuItem, MenuItemVariant, Customer, StoreTable, MenuItemAddon, sequelize, Op } = require("../models");
 
-exports.getKitchenOrdersDB = async (tenantId) => {
+exports.getKitchenOrdersDB = async (tenantId, branchId) => {
   try {
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
@@ -15,6 +15,7 @@ exports.getKitchenOrdersDB = async (tenantId) => {
         },
         status: { [Op.notIn]: ['completed', 'cancelled'] },
         tenant_id: tenantId,
+        ...(branchId == null ? {} : { branch_id: branchId }),
       },
       include: [
         {
@@ -97,17 +98,4 @@ exports.getKitchenOrdersDB = async (tenantId) => {
     console.error(error);
     throw error;
   }
-};
-
-exports.updateOrderItemStatusDB = async (orderItemId, status) => {
-  try {
-    await OrderItem.update(
-      { status: status },
-      { where: { id: orderItemId } }
-    );
-    return;
-} catch (error) {
-    console.error(error);
-    throw error;
-}
 };

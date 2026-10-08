@@ -39,6 +39,8 @@ import QRCode from "qrcode"
 import { getQRMenuLink } from "../helpers/QRMenuHelper";
 import { useTheme } from "../contexts/ThemeContext";
 import clsx from "clsx";
+import { IconHelpCircle } from "@tabler/icons-react";
+import { startStaffTour, TOUR_TYPES } from "../helpers/tourGuide";
 
 export default function OrdersPage() {
   const { t } = useTranslation();
@@ -292,16 +294,22 @@ export default function OrdersPage() {
       if (res.status == 200) {
         const { subtotal, taxTotal, serviceChargeTotal, total, orders } = res.data;
 
+        const rawAmounts = [subtotal, taxTotal, serviceChargeTotal, total];
+        if (rawAmounts.some((amount) => amount === null || amount === undefined || !Number.isFinite(Number(amount)))) {
+          toast.error("Unable to calculate the order total. Check item prices and tax settings.");
+          return;
+        }
+        const amounts = rawAmounts.map(Number);
 
         const tokenNoArray = orders.map(o=>o.token_no);
         const tokens = tokenNoArray.join(",");
 
         setState({
           ...state,
-          summaryNetTotal: subtotal,
-          summaryTaxTotal: taxTotal,
-          summaryServiceChargeTotal:serviceChargeTotal,
-          summaryTotal: total,
+          summaryNetTotal: amounts[0],
+          summaryTaxTotal: amounts[1],
+          summaryServiceChargeTotal: amounts[2],
+          summaryTotal: amounts[3],
           summaryOrders: orders,
           completeOrderIds: orderIds,
           completeTokenIds: tokens,
@@ -571,8 +579,17 @@ export default function OrdersPage() {
 
   return (
     <Page>
-      <div className="flex items-center gap-6">
+      <div id="tour-orders-header" className="flex items-center gap-4">
         <h3 className="text-3xl font-light">{t('orders.title')}</h3>
+        <button
+          type="button"
+          onClick={() => startStaffTour(TOUR_TYPES.ORDERS)}
+          aria-label="Guide to Orders"
+          title="Guide to Orders"
+          className="rounded-full p-2 text-gray-500 transition hover:bg-restro-gray hover:text-restro-text"
+        >
+          <IconHelpCircle size={22} stroke={iconStroke} />
+        </button>
         <button
           onClick={refreshOrders}
           className = "flex items-center gap-1 rounded-xl text-restro-text shadow-none transition active:scale-95 px-2 py-1 bg-restro-gray hover:bg-restro-button-hover border border-restro-border-green"
@@ -593,7 +610,7 @@ export default function OrdersPage() {
       )}
 
       {kitchenOrders?.length > 0 && (
-        <div className={`mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 `}>
+        <div id="tour-orders-list" className={`mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 `}>
           {kitchenOrders.map((order, index) => {
             const { table_id, table_title, floor, orders, order_ids } = order;
 
@@ -625,6 +642,7 @@ export default function OrdersPage() {
                   </div>
                   <div className="dropdown dropdown-end">
                     <div
+                      data-tour="orders-order-actions"
                       tabIndex={0}
                       role="button"
                       className="m-1 btn btn-sm btn-circle bg-transparent border-none shadow-none p-2 rounded-full hover:bg-restro-button-hover"
@@ -812,6 +830,7 @@ export default function OrdersPage() {
                               {/* action */}
                               <div className="dropdown dropdown-left">
                                 <div
+                                  data-tour="orders-item-action"
                                   tabIndex={0}
                                   role="button"
                                   className="btn btn-sm btn-circle bg-transparent border-none shadow-none m-1"
@@ -992,7 +1011,7 @@ export default function OrdersPage() {
               <div key={index} className="flex items-center justify-between text-restro-text">
                 <p>{label}</p>
                 <p className="text-lg">
-                  {prefix}{currency}{value.toFixed(2)}
+                  {prefix}{currency}{Number.isFinite(Number(value)) ? Number(value).toFixed(2) : "—"}
                 </p>
               </div>
             ))}
@@ -1000,7 +1019,7 @@ export default function OrdersPage() {
             <div className="flex items-center justify-between border-t border-gray-300 dark:border-restro-bg-gray pt-2 mt-2">
               <p className="text-xl font-medium">{t('orders.payable_total')}</p>
               <p className="text-xl font-bold text-restro-green">
-                {currency}{state.summaryTotal.toFixed(2)}
+                {currency}{Number.isFinite(Number(state.summaryTotal)) ? Number(state.summaryTotal).toFixed(2) : "—"}
               </p>
             </div>
           </div>
@@ -1046,7 +1065,7 @@ export default function OrdersPage() {
                 onClick={() => {
                   btnPayAndComplete();
                 }}
-                className="w-full rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 bg-restro-green hover:bg-restro-green-button-hover"
+                className="w-full rounded-xl transition active:scale-95 hover:shadow-lg px-4 py-3 bg-restro-green text-white hover:bg-restro-green-button-hover hover:text-white focus-visible:text-white"
               >
                 {t('orders.pay_complete_order')}
               </button>

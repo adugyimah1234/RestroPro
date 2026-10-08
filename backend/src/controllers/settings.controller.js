@@ -390,6 +390,7 @@ exports.addPaymentType = async (req, res) => {
         const title = req.body.title;
         const isActive = req.body.isActive;
         const icon = req.body.icon;
+        const isCash = req.body.isCash === true;
 
         if(!(title)) {
             return res.status(400).json({
@@ -398,7 +399,7 @@ exports.addPaymentType = async (req, res) => {
             });
         }
 
-        const id = await addPaymentTypeDB(title, isActive, tenantId, icon);
+        const id = await addPaymentTypeDB(title, isActive, tenantId, icon, isCash);
         return res.status(200).json({
             success: true,
             message: req.__("payment_type_added"),
@@ -434,6 +435,7 @@ exports.updatePaymentType = async (req, res) => {
         const title = req.body.title;
         const isActive = req.body.isActive;
         const icon = req.body.icon;
+        const isCash = req.body.isCash === true;
 
         if(!(title)) {
             return res.status(400).json({
@@ -442,7 +444,7 @@ exports.updatePaymentType = async (req, res) => {
             });
         }
 
-        await updatePaymentTypeDB(id, title, isActive, tenantId, icon);
+        await updatePaymentTypeDB(id, title, isActive, tenantId, icon, isCash);
         return res.status(200).json({
             success: true,
             message: req.__("payment_type_updated"),

@@ -17,8 +17,10 @@ export default function PaymentTypesPage() {
   const paymentTypeIdUpdateRef = useRef();
   const paymentTypeTitleUpdateRef = useRef();
   const paymentTypeIsActiveUpdateRef = useRef();
+  const paymentTypeIsCashUpdateRef = useRef();
 
   const [selectedIcon, setSelectedIcon] = useState();
+  const [newIsCash, setNewIsCash] = useState(false);
   const { theme } = useTheme();
 
 
@@ -58,9 +60,10 @@ export default function PaymentTypesPage() {
     }
   };
 
-  const btnShowUpdate = async (id, title, isActive, icon) => {
+  const btnShowUpdate = async (id, title, isActive, icon, isCash) => {
     paymentTypeIdUpdateRef.current.value = id;
     paymentTypeIsActiveUpdateRef.current.checked = isActive;
+    paymentTypeIsCashUpdateRef.current.checked = Boolean(isCash);
     paymentTypeTitleUpdateRef.current.value = title;
     setSelectedIcon(icon);
     setTimeout(()=>{document.getElementById('modal-update').showModal();}, 100);
@@ -70,6 +73,7 @@ export default function PaymentTypesPage() {
     const id = paymentTypeIdUpdateRef.current.value
     const title = paymentTypeTitleUpdateRef.current.value
     const isActive = paymentTypeIsActiveUpdateRef.current.checked
+    const isCash = paymentTypeIsCashUpdateRef.current.checked
 
     if(!title) {
       toast.error(t('payment_types.payment_type_title'));
@@ -78,12 +82,13 @@ export default function PaymentTypesPage() {
 
     try {
       toast.loading(t('payment_types.please_wait'));
-      const res = await updatePaymentType(id, title, isActive, selectedIcon);
+      const res = await updatePaymentType(id, title, isActive, selectedIcon, isCash);
 
       if(res.status == 200) {
         paymentTypeIdUpdateRef.current.value = null;
         paymentTypeIsActiveUpdateRef.current.checked = null;
         paymentTypeTitleUpdateRef.current.value = null;
+        paymentTypeIsCashUpdateRef.current.checked = false;
 
         await mutate(APIURL);
         setSelectedIcon(undefined);
@@ -128,12 +133,13 @@ export default function PaymentTypesPage() {
 
     try {
       toast.loading(t('payment_types.please_wait'));
-      const res = await addNewPaymentType(paymentType, true, selectedIcon);
+      const res = await addNewPaymentType(paymentType, true, selectedIcon, newIsCash);
 
       if(res.status == 200) {
         paymentTypeAddRef.current.value = "";
         await mutate(APIURL);
         setSelectedIcon(undefined);
+        setNewIsCash(false);
         toast.dismiss();
         toast.success(res.data.message);
       }
@@ -160,7 +166,7 @@ export default function PaymentTypesPage() {
 
       <div className="mt-8 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {paymentTypes.map((paymentType, index) => {
-          const { id, title, is_active, icon } = paymentType;
+          const { id, title, is_active, icon, is_cash } = paymentType;
 
           return (
             <div key={index} className='flex flex-col justify-between transition active:scale-95 gap-4 px-4 py-3 border rounded-2xl text-restro-text border-restro-border-green'>
@@ -169,9 +175,12 @@ export default function PaymentTypesPage() {
               </div>
               <div className="mt-4 flex gap-2 items-center">
                 <div className="flex flex-1 items-center gap-2">
+                  <span className={`rounded-full px-2 py-1 text-xs ${is_cash ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"}`}>
+                    {is_cash ? "Cash tender" : "Non-cash"}
+                  </span>
                   <button
                     onClick={() => {
-                      btnShowUpdate(id, title, is_active, icon);
+                      btnShowUpdate(id, title, is_active, icon, is_cash);
                     }}
                     className='w-8 h-8 rounded-full flex items-center justify-center text-restro-text hover:bg-restro-button-hover'
                   >
@@ -223,6 +232,16 @@ export default function PaymentTypesPage() {
               className='text-sm w-full rounded-lg px-4 py-2 border border-restro-border-green dark:bg-black focus:outline-restro-border-green'
               placeholder={t('payment_types.enter_payment_type')}
             />
+
+            <label className="mt-4 flex items-center gap-2 text-sm text-restro-text">
+              <input
+                type="checkbox"
+                checked={newIsCash}
+                onChange={(event) => setNewIsCash(event.target.checked)}
+                className="accent-restro-green"
+              />
+              Counts as physical cash in register closeouts
+            </label>
 
             <label
               htmlFor="icon"
@@ -354,6 +373,11 @@ export default function PaymentTypesPage() {
             </label>
             {/* switch */}
           </div>
+
+          <label className="mt-4 flex items-center gap-2 text-sm text-restro-text">
+            <input ref={paymentTypeIsCashUpdateRef} type="checkbox" className="accent-restro-green" />
+            Counts as physical cash in register closeouts
+          </label>
 
           <div className="mt-4">
             <label

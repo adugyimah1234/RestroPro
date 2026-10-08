@@ -6,6 +6,8 @@ const {
   getServiceChargeDB,
 } = require("../services/settings.service");
 
+const ORDER_ITEM_STATUSES = new Set(['preparing', 'completed', 'cancelled', 'delivered']);
+
 exports.getOrders = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
@@ -14,19 +16,31 @@ exports.getOrders = async (req, res) => {
     const {kitchenOrders,kitchenOrdersItems,addons} = await getOrdersDB(tenantId, branchId);
 
     const formattedOrders = kitchenOrders.map((order)=>{
-      const orderItems = kitchenOrdersItems.filter((oi)=>oi.order_id == order.id);
-
-      orderItems.forEach((oi, index)=>{
-        const addonsIds = oi?.addons ? JSON.parse(oi?.addons) : null;
-
-        if(addonsIds) {
-          const itemAddons = addonsIds.map((addonId)=>{
+      const orderItems = kitchenOrdersItems
+        .filter((oi)=>oi.order_id == order.id)
+        .map((oi)=>{
+          const menuItem = oi.MenuItem || {};
+          const variant = oi.MenuItemVariant || {};
+          const tax = menuItem.Tax || {};
+          const addonsIds = oi?.addons ? JSON.parse(oi?.addons) : null;
+          const itemAddons = addonsIds
+            ? addonsIds.map((addonId)=>{
             const addon = addons.filter((a)=>a.id == addonId);
             return addon[0];
-          });
-          orderItems[index].addons = [...itemAddons];
-        }
-      });
+            }).filter(Boolean)
+            : [];
+
+          return {
+            ...oi,
+            item_title: menuItem.item_title,
+            variant_title: variant.variant_title,
+            price: oi.price ?? menuItem.price,
+            variant_price: variant.variant_price,
+            tax_rate: tax.tax_rate,
+            tax_type: tax.tax_type,
+            addons: itemAddons,
+          };
+        });
 
       return {
         ...order,
@@ -110,14 +124,20 @@ exports.updateKitchenOrderItemStatus = async (req, res) => {
     const orderItemId = req.params.id;
     const { status } = req.body
 
-    if(!status) {
+    if(!ORDER_ITEM_STATUSES.has(status)) {
       return res.status(400).json({
         success: false,
         message: req.__("invalid_request") // Translate message
       });
     }
 
-    await updateOrderItemStatusDB(orderItemId, status, tenantId, branchId)
+    const updated = await updateOrderItemStatusDB(orderItemId, status, tenantId, branchId);
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: req.__("invalid_request"),
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -145,7 +165,10 @@ exports.cancelKitchenOrder = async (req, res) => {
       });
     }
 
-    await cancelOrderDB(orderIds, tenantId, branchId);
+    await cancelOrderDB(orderIds, tenantId, branchId, {
+      username: req.user.username,
+      name: req.user.name,
+    });
 
     return res.status(200).json({
       success: true,
@@ -195,16 +218,14 @@ exports.getOrdersPaymentSummary = async (req, res) => {
     const orderIds = req.body.orderIds;
 
     if(!orderIds || orderIds?.length == 0) {
-      return res.status(400).JSON({
+      return res.status(400).json({
         success: false,
         message: req.__("invalid_request") // Translate message
       });
     }
 
-    const orderIdsParams = orderIds.join(",");
-
     const [ordersPaymentSummaryData, applicableServiceChargePercentage] = await Promise.all([
-      getOrdersPaymentSummaryDB(orderIdsParams, tenantId, branchId),
+      getOrdersPaymentSummaryDB(orderIds, tenantId, branchId),
       getServiceChargeDB(tenantId, branchId),
     ]);
 
@@ -212,19 +233,31 @@ exports.getOrdersPaymentSummary = async (req, res) => {
 
 
     const formattedOrders = kitchenOrders.map((order)=>{
-      const orderItems = kitchenOrdersItems.filter((oi)=>oi.order_id == order.id);
-
-      orderItems.forEach((oi, index)=>{
-        const addonsIds = oi?.addons ? JSON.parse(oi?.addons) : null;
-
-        if(addonsIds) {
-          const itemAddons = addonsIds.map((addonId)=>{
+      const orderItems = kitchenOrdersItems
+        .filter((oi)=>oi.order_id == order.id)
+        .map((oi)=>{
+          const menuItem = oi.MenuItem || {};
+          const variant = oi.MenuItemVariant || {};
+          const tax = menuItem.Tax || {};
+          const addonsIds = oi?.addons ? JSON.parse(oi?.addons) : null;
+          const itemAddons = addonsIds
+            ? addonsIds.map((addonId)=>{
             const addon = addons.filter((a)=>a.id == addonId);
             return addon[0];
-          });
-          orderItems[index].addons = [...itemAddons];
-        }
-      });
+            }).filter(Boolean)
+            : [];
+
+          return {
+            ...oi,
+            item_title: menuItem.item_title,
+            variant_title: variant.variant_title,
+            price: oi.price ?? menuItem.price,
+            variant_price: variant.variant_price,
+            tax_rate: tax.tax_rate,
+            tax_type: tax.tax_type,
+            addons: itemAddons,
+          };
+        });
 
       return {
         ...order,
@@ -246,16 +279,33 @@ exports.getOrdersPaymentSummary = async (req, res) => {
         const item = items[index];
 
         const { variant_price, price, tax_rate, tax_type: taxType, quantity, addons } = item;
+        const unitPrice = Number(variant_price ?? price);
+        const itemQuantity = Number(quantity);
+        const addonsTotal = (addons || []).reduce((sum, addon) => sum + Number(addon.price), 0);
 
-        const taxRate = Number(tax_rate);
-        let addonsTotal = 0;
-        if(addons) {
-          for (const addon of addons) {
-            addonsTotal += Number(addon.price)
-          }
+        if (
+          !Number.isFinite(unitPrice) ||
+          !Number.isFinite(itemQuantity) ||
+          itemQuantity <= 0 ||
+          !Number.isFinite(addonsTotal)
+        ) {
+          return res.status(422).json({
+            success: false,
+            message: "Unable to calculate the order total. Check that every item has a valid price and quantity.",
+          });
         }
 
-        const itemPrice = ((Number(variant_price?variant_price:price) + addonsTotal) * Number(quantity));
+        const itemPrice = (unitPrice + addonsTotal) * itemQuantity;
+        const taxRate = Number(tax_rate ?? 0);
+        if (
+          (taxType === "exclusive" || taxType === "inclusive") &&
+          (!Number.isFinite(taxRate) || taxRate < 0)
+        ) {
+          return res.status(422).json({
+            success: false,
+            message: "Unable to calculate the order total. Check the tax settings for each item.",
+          });
+        }
 
         if (taxType == "exclusive") {
           const tax = (itemPrice * taxRate) / 100;
@@ -322,7 +372,10 @@ exports.payAndCompleteKitchenOrder = async (req, res) => {
     const date = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
     // get invoice id
-    const invoiceId = await createInvoiceDB(subTotal, taxTotal, serviceChargeTotal, total, date, selectedPaymentType, tenantId, branchId);
+    const invoiceId = await createInvoiceDB(subTotal, taxTotal, serviceChargeTotal, total, date, selectedPaymentType, tenantId, branchId, {
+      username: req.user.username,
+      name: req.user.name,
+    });
 
     await completeOrdersAndSaveInvoiceIdDB(orderIds, invoiceId, tenantId, branchId);
 

@@ -225,7 +225,7 @@ exports.getInvoiceOrders = async (req, res) => {
     const orderIds = req.body.orderIds;
     const invoiceId = req.body.invoiceId;
 
-    if (!orderIds || orderIds?.length == 0 || !invoiceId) {
+    if (!Array.isArray(orderIds) || orderIds.length === 0 || !invoiceId) {
       return res.status(400).json({
         success: false,
         message: req.__("invalid_request"), // Translate message
@@ -233,9 +233,16 @@ exports.getInvoiceOrders = async (req, res) => {
     }
 
     const [invoiceOrdersData, invoiceData] = await Promise.all([
-        getInvoiceOrdersDB(orderIds),
+        getInvoiceOrdersDB(orderIds, tenantId, invoiceId),
         getInvoiceByIdDB(invoiceId, tenantId),
       ]);
+
+    if (!invoiceData) {
+      return res.status(404).json({
+        success: false,
+        message: req.__("invalid_request"),
+      });
+    }
 
     const { kitchenOrders, kitchenOrdersItems, addons } = invoiceOrdersData;
     const {sub_total, tax_total, service_charge_total, total} = invoiceData;
