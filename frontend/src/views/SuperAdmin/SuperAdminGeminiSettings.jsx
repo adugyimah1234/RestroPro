@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { IconEye, IconEyeOff, IconTestPipe, IconTrash } from '@tabler/icons-react'; // Import new icons
-import { useTheme } from '../../contexts/ThemeContext'; // Assuming ThemeContext is available
-import { iconStroke } from '../../config/config'; // Assuming iconStroke is available
+import {
+    IconEye,
+    IconEyeOff,
+    IconTestPipe,
+    IconTrash,
+    IconSparkles,
+} from '@tabler/icons-react';
+import Page from '../../components/Page';
+import { iconStroke } from '../../config/config';
+import ApiClient from '../../helpers/ApiClient';
 
 const SuperAdminGeminiSettings = () => {
     const [geminiApiKey, setGeminiApiKey] = useState('');
+    const [isApiKeyConfigured, setIsApiKeyConfigured] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [showApiKey, setShowApiKey] = useState(false); // State for showing/hiding API key
-    const { theme } = useTheme(); // Get current theme
+    const [showApiKey, setShowApiKey] = useState(false);
 
     useEffect(() => {
         fetchApiKey();
@@ -17,15 +24,10 @@ const SuperAdminGeminiSettings = () => {
     const fetchApiKey = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/v1/superadmin/gemini-api-key');
-            const data = await response.json();
-            if (response.ok) {
-                setGeminiApiKey(data.gemini_api_key || '');
-            } else {
-                toast.error(data.message || 'Failed to fetch Gemini API key.');
-            }
+            const response = await ApiClient.get('/superadmin/gemini-api-key');
+            setIsApiKeyConfigured(response.data.configured);
         } catch (error) {
-            toast.error('Error fetching Gemini API key.');
+            toast.error(error?.response?.data?.message || 'Error fetching Gemini API key.');
             console.error('Error fetching Gemini API key:', error);
         } finally {
             setLoading(false);
@@ -36,21 +38,17 @@ const SuperAdminGeminiSettings = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const response = await fetch('/api/v1/superadmin/gemini-api-key', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ gemini_api_key: geminiApiKey }),
+            const response = await ApiClient.post('/superadmin/gemini-api-key', {
+                gemini_api_key: geminiApiKey,
             });
-            const data = await response.json();
-            if (response.ok) {
+            const data = response.data;
+            if (response.status >= 200 && response.status < 300) {
+                setGeminiApiKey('');
+                setIsApiKeyConfigured(data.configured);
                 toast.success(data.message);
-            } else {
-                toast.error(data.message || 'Failed to save Gemini API key.');
             }
         } catch (error) {
-            toast.error('Error saving Gemini API key.');
+            toast.error(error?.response?.data?.message || 'Error saving Gemini API key.');
             console.error('Error saving Gemini API key:', error);
         } finally {
             setLoading(false);
@@ -61,22 +59,17 @@ const SuperAdminGeminiSettings = () => {
         if (window.confirm('Are you sure you want to clear the Gemini API Key?')) {
             setLoading(true);
             try {
-                const response = await fetch('/api/v1/superadmin/gemini-api-key', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ gemini_api_key: '' }), // Send empty string to clear
+                const response = await ApiClient.post('/superadmin/gemini-api-key', {
+                    gemini_api_key: '',
                 });
-                const data = await response.json();
-                if (response.ok) {
+                const data = response.data;
+                if (response.status >= 200 && response.status < 300) {
                     setGeminiApiKey('');
+                    setIsApiKeyConfigured(false);
                     toast.success(data.message);
-                } else {
-                    toast.error(data.message || 'Failed to clear Gemini API key.');
                 }
             } catch (error) {
-                toast.error('Error clearing Gemini API key.');
+                toast.error(error?.response?.data?.message || 'Error clearing Gemini API key.');
                 console.error('Error clearing Gemini API key:', error);
             } finally {
                 setLoading(false);
@@ -87,15 +80,13 @@ const SuperAdminGeminiSettings = () => {
     const handleTestApiKey = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/v1/superadmin/test-gemini-api-key');
-            const data = await response.json();
-            if (response.ok) {
+            const response = await ApiClient.get('/superadmin/test-gemini-api-key');
+            const data = response.data;
+            if (response.status >= 200 && response.status < 300) {
                 toast.success(data.message);
-            } else {
-                toast.error(data.message || 'Failed to test Gemini API key.');
             }
         } catch (error) {
-            toast.error('Error testing Gemini API key.');
+            toast.error(error?.response?.data?.message || 'Error testing Gemini API key.');
             console.error('Error testing Gemini API key:', error);
         } finally {
             setLoading(false);
@@ -103,59 +94,93 @@ const SuperAdminGeminiSettings = () => {
     };
 
     return (
-        <div className="p-4 bg-restro-background text-restro-text min-h-screen">
-            <h1 className="text-2xl font-bold mb-4">Gemini API Key Settings</h1>
-            <form onSubmit={handleSaveApiKey} className="bg-restro-card-bg p-6 rounded-lg ">
-                <div className="mb-4">
-                    <label htmlFor="geminiApiKey" className="block text-restro-text text-sm font-bold mb-2">
-                        Gemini API Key:
-                    </label>
-                    <div className="relative">
-                        <input
-                            type={showApiKey ? 'text' : 'password'}
-                            id="geminiApiKey"
-                            className="shadow appearance-none border rounded w-full py-2 px-3 pr-10 bg-restro-input-bg text-restro-text leading-tight focus:outline-none focus:shadow-outline"
-                            value={geminiApiKey}
-                            onChange={(e) => setGeminiApiKey(e.target.value)}
-                            placeholder="Enter your Gemini API Key"
-                            required
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowApiKey(!showApiKey)}
-                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 text-restro-text"
-                        >
-                            {showApiKey ? <IconEyeOff stroke={iconStroke} /> : <IconEye stroke={iconStroke} />}
-                        </button>
+        <Page>
+            <div className="mx-auto max-w-4xl py-4 lg:py-8">
+                <div className="mb-6 flex items-center gap-4">
+                    <div className="rounded-2xl bg-restro-green/10 p-3 text-restro-green">
+                        <IconSparkles size={24} stroke={iconStroke} />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                            Gemini API Key Settings
+                        </h1>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Manage and verify the API key used for AI features.
+                        </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
-                    <button
-                        type="submit"
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                        disabled={loading}
-                    >
-                        {loading ? 'Saving...' : 'Save API Key'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleTestApiKey}
-                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                        disabled={loading || !geminiApiKey}
-                    >
-                        <IconTestPipe stroke={iconStroke} className="inline-block mr-1" /> Test API Key
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleClearApiKey}
-                        className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                        disabled={loading || !geminiApiKey}
-                    >
-                        <IconTrash stroke={iconStroke} className="inline-block mr-1" /> Clear API Key
-                    </button>
-                </div>
-            </form>
-        </div>
+
+                <form
+                    onSubmit={handleSaveApiKey}
+                    className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-restro-border-green dark:bg-restro-card-bg"
+                >
+                    <div className="mb-6">
+                        <label
+                            htmlFor="geminiApiKey"
+                            className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-200"
+                        >
+                            Gemini API Key
+                        </label>
+                        <div className="relative">
+                            <input
+                                type={showApiKey ? 'text' : 'password'}
+                                id="geminiApiKey"
+                                className="w-full rounded-xl border border-gray-200 bg-transparent px-4 py-3 pr-12 text-sm text-gray-900 outline-none transition focus:border-restro-green dark:border-restro-border-green dark:text-white"
+                                value={geminiApiKey}
+                                onChange={(e) => setGeminiApiKey(e.target.value)}
+                                placeholder="Enter your Gemini API Key"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowApiKey(!showApiKey)}
+                                aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                                className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 transition hover:text-restro-green"
+                            >
+                                {showApiKey ? (
+                                    <IconEyeOff size={20} stroke={iconStroke} />
+                                ) : (
+                                    <IconEye size={20} stroke={iconStroke} />
+                                )}
+                            </button>
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500">
+                            {isApiKeyConfigured
+                                ? 'A key is configured. Enter a new key to replace it.'
+                                : 'No key is configured. The key is used by the restaurant AI features.'}
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 dark:border-restro-border-green sm:flex-row">
+                        <button
+                            type="submit"
+                            className="rounded-xl bg-restro-green px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-restro-green-button-hover disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={loading}
+                        >
+                            {loading ? 'Saving...' : 'Save API Key'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleTestApiKey}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-restro-border-green dark:text-gray-200 dark:hover:bg-restro-gray"
+                            disabled={loading || (!geminiApiKey && !isApiKeyConfigured)}
+                        >
+                            <IconTestPipe size={18} stroke={iconStroke} />
+                            Test API Key
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearApiKey}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:hover:bg-red-950"
+                            disabled={loading || !geminiApiKey}
+                        >
+                            <IconTrash size={18} stroke={iconStroke} />
+                            Clear API Key
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </Page>
     );
 };
 
