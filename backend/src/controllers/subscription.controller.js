@@ -1,10 +1,9 @@
 const subscriptionService = require('../services/subscription.service');
-const { v4: uuidv4 } = require('uuid'); // For generating unique references
+const { v4: uuidv4 } = require('uuid');
 
 exports.createPlan = async (req, res) => {
   try {
-    const { name, amount, currency, duration_unit, duration_value, features, paystack_plan_id } = req.body;
-    const plan = await subscriptionService.createSubscriptionPlan(name, amount, currency, duration_unit, duration_value, features, paystack_plan_id);
+    const plan = await subscriptionService.createSubscriptionPlan(req.body);
     res.status(201).json(plan);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -14,6 +13,15 @@ exports.createPlan = async (req, res) => {
 exports.getPlans = async (req, res) => {
   try {
     const plans = await subscriptionService.getAllSubscriptionPlans();
+    res.status(200).json(plans);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getPublicPlans = async (req, res) => {
+  try {
+    const plans = await subscriptionService.getPublicSubscriptionPlans();
     res.status(200).json(plans);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -36,9 +44,17 @@ exports.getPlanById = async (req, res) => {
 exports.updatePlan = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, amount, currency, duration_unit, duration_value, features, paystack_plan_id } = req.body;
-    const plan = await subscriptionService.updateSubscriptionPlan(id, name, amount, currency, duration_unit, duration_value, features, paystack_plan_id);
+    const plan = await subscriptionService.updateSubscriptionPlan(id, req.body);
     res.status(200).json(plan);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.resetPlans = async (req, res) => {
+  try {
+    const plans = await subscriptionService.resetToDefaultPlans();
+    res.status(200).json({ message: 'Subscription plans reset to default 3 cards successfully.', plans });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -67,7 +83,7 @@ exports.initiatePayment = async (req, res) => {
       return res.status(404).json({ message: 'Subscription plan not found.' });
     }
 
-    const reference = `sub_${uuidv4()}`; // Generate a unique reference
+    const reference = `sub_${uuidv4()}`;
     const metadata = {
       tenant_id: tenantId,
       subscription_plan_id: planId,
@@ -75,7 +91,7 @@ exports.initiatePayment = async (req, res) => {
     };
 
     const authorization_url = await subscriptionService.initiatePaystackTransaction(
-      plan.amount,
+      plan.price || plan.amount,
       email,
       reference,
       metadata,

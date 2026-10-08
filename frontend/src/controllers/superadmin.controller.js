@@ -157,3 +157,61 @@ export async function getTenantDetails(tenantId) {
     throw error;
   }
 }
+
+export function useSuperAdminSubscriptionPlans() {
+  const APIURL = `/superadmin/subscription-plans`;
+  const { data, error, isLoading, mutate } = useSWR(APIURL, fetcher);
+  return {
+    data,
+    error,
+    isLoading,
+    mutate,
+    APIURL,
+  };
+}
+
+export function usePublicSubscriptionPlans() {
+  const APIURL = `${API}/public/subscription-plans`;
+  const { data, error, isLoading } = useSWR(APIURL, (url) => axios.get(url).then((res) => res.data));
+  return {
+    data,
+    error,
+    isLoading,
+  };
+}
+
+export async function createSubscriptionPlan(planData) {
+  try {
+    const response = await ApiClient.post(`${API}/superadmin/subscription-plans`, planData);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function updateSubscriptionPlan(id, planData) {
+  try {
+    const response = await ApiClient.put(`${API}/superadmin/subscription-plans/${id}`, planData);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function resetSubscriptionPlans() {
+  try {
+    const response = await ApiClient.post(`${API}/superadmin/subscription-plans/reset`);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function deleteSubscriptionPlan(id) {
+  try {
+    const response = await ApiClient.delete(`${API}/superadmin/subscription-plans/${id}`);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}

@@ -2,21 +2,14 @@ import React, { useContext, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import {
-  IconArmchair2,
   IconBuildingStore,
   IconChartArea,
-  IconChefHat,
   IconChevronLeft,
   IconChevronRight,
-  IconDeviceIpadHorizontal,
-  IconFileInvoice,
-  IconFriends,
   IconLayoutDashboard,
   IconSettings2,
-  IconToolsKitchen3,
-  IconUsersGroup,
-  IconKey, // Added for API Key
-  IconCreditCard, // Added for Billing
+  IconKey,
+  IconCreditCard,
 } from "@tabler/icons-react";
 import { clsx } from "clsx";
 import Logo from "../assets/logo.svg";
@@ -35,44 +28,44 @@ export default function SuperAdminNavbar() {
   const user = getUserDetailsInLocalStorage();
   
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useContext(NavbarContext);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false); // New state for settings dropdown
+  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
 
   const navbarItems = [
     {
       type: "link",
-      text: t('superadmin_navbar.dashboard'),
+      text: t('superadmin_navbar.dashboard', 'Dashboard'),
       icon: <IconLayoutDashboard stroke={iconStroke} />,
       path: "/superadmin/dashboard/home",
     },
     {
       type: "link",
-      text: t('superadmin_navbar.tenants'),
+      text: t('superadmin_navbar.tenants', 'Tenants'),
       icon: <IconBuildingStore stroke={iconStroke} />,
       path: "/superadmin/dashboard/tenants",
     },
     {
       type: "link",
-      text: t('superadmin_navbar.reports'),
+      text: t('superadmin_navbar.reports', 'Reports'),
       icon: <IconChartArea stroke={iconStroke} />,
       path: "/superadmin/dashboard/reports",
     },
     {
       type: "parent",
-      text: t('superadmin_navbar.settings'),
+      text: t('superadmin_navbar.settings', 'Settings'),
       icon: <IconSettings2 stroke={iconStroke} />,
-      path: "/superadmin/dashboard/settings", // This will be a conceptual path for the parent
+      path: "/superadmin/dashboard/settings",
       children: [
         {
           type: "link",
-          text: t('superadmin_navbar.api_key'),
-          icon: <IconKey stroke={iconStroke} />, // Using IconKey
+          text: t('superadmin_navbar.api_key', 'AI Gemini Settings'),
+          icon: <IconKey stroke={iconStroke} />,
           path: "/superadmin/dashboard/gemini-settings",
         },
         {
           type: "link",
-          text: t('superadmin_navbar.billing'),
-          icon: <IconCreditCard stroke={iconStroke} />, // Using IconCreditCard
-          path: "/superadmin/dashboard/billing", // Placeholder for now
+          text: t('superadmin_navbar.billing', 'Pricing & Billing'),
+          icon: <IconCreditCard stroke={iconStroke} />,
+          path: "/superadmin/dashboard/billing",
         },
       ]
     },
@@ -80,21 +73,19 @@ export default function SuperAdminNavbar() {
 
   const btnToggleNavbar = () => {
     const isNavCollapsed = toggleNavbar();
-    console.log(isNavCollapsed);
     if (isNavCollapsed) {
       setIsNavbarCollapsed(true);
     } else {
       setIsNavbarCollapsed(false);
     }
   };
+
   if (isNavbarCollapsed) {
     return (
-      <div className ="flex flex-col items-start gap-4 h-screen px-5 py-6 overflow-y-auto fixed left-0 top-0 bg-restro-green-light">
+      <div className="flex flex-col items-start gap-4 h-screen px-5 py-6 overflow-y-auto fixed left-0 top-0 bg-restro-green-light">
         <img src={theme === "black" ? LogoDark : Logo} alt="logo" className="w-12 block mb-6" />
         {navbarItems.map((item, index) => {
-          if (item.type === "text") {
-            return null;
-          }
+          if (item.type === "text") return null;
 
           if (item.type === "parent") {
             return (
@@ -142,14 +133,14 @@ export default function SuperAdminNavbar() {
             <Link
               key={index}
               className={clsx(
-                              `w-12 h-12 flex items-center justify-center rounded-full transition`,
-                              {
-                                "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(item.path),
-                                "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(item.path),
-                                "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(item.path),
-                                "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(item.path),
-                              }
-                            )}
+                `w-12 h-12 flex items-center justify-center rounded-full transition`,
+                {
+                  "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(item.path),
+                  "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(item.path),
+                  "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(item.path),
+                  "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(item.path),
+                }
+              )}
               to={item.path}
             >
               {item.icon}
@@ -159,7 +150,7 @@ export default function SuperAdminNavbar() {
 
         <button
           onClick={btnToggleNavbar}
-          className="w-12 h-12 flex items-center justify-center rounded-full transitionborder border-restro-green-light hover:bg-restro-border-green text-restro-text"
+          className="w-12 h-12 flex items-center justify-center rounded-full transition border border-restro-green-light hover:bg-restro-border-green text-restro-text"
         >
           <IconChevronRight stroke={iconStroke} />
         </button>
@@ -202,7 +193,7 @@ export default function SuperAdminNavbar() {
                 <button
                   onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                   className={clsx(
-                    "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-1 md:px-4 md:py-3 rounded-full transition",
+                    "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-2 md:px-4 md:py-3 rounded-full transition",
                     {
                       "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(item.path),
                       "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(item.path),
@@ -219,7 +210,7 @@ export default function SuperAdminNavbar() {
                       <Link
                         key={childIndex}
                         className={clsx(
-                          "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-1 md:px-4 md:py-3 rounded-full transition",
+                          "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-2 md:px-4 md:py-3 rounded-full transition text-sm",
                           {
                             "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(child.path),
                             "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(child.path),
@@ -242,13 +233,13 @@ export default function SuperAdminNavbar() {
             <Link
               key={index}
               className={clsx(
-                "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-1 md:px-4 md:py-3 rounded-full transition",
+                "w-12 h-12 md:w-full flex justify-center md:justify-normal items-center md:gap-2 md:px-4 md:py-3 rounded-full transition",
                 {
-                                "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(item.path),
-                                "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(item.path),
-                                "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(item.path),
-                                "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(item.path),
-                              }
+                  "bg-restro-bg-hover-dark-mode font-medium text-restro-green": theme === 'black' && pathname.includes(item.path),
+                  "bg-restro-border-green-light font-medium text-restro-green": theme !== 'black' && pathname.includes(item.path),
+                  "hover:bg-restro-bg-hover-dark-mode": theme === 'black' && !pathname.includes(item.path),
+                  "hover:bg-restro-border-green-light": theme !== 'black' && !pathname.includes(item.path),
+                }
               )}
               to={item.path}
             >
@@ -259,11 +250,11 @@ export default function SuperAdminNavbar() {
       </div>
 
       <button
-              onClick={btnToggleNavbar}
-              className="w-9 h-9 hidden md:flex items-center justify-center rounded-full border transition bg-restro-green-light dark:bg-restro-gray hover:bg-gray-200 dark:hover:bg-restro-button-hover text-gray-500 fixed bottom-4 left-[17.5rem] -translate-x-1/2 dark:border-restro-border-green"
-            >
-              <IconChevronLeft stroke={iconStroke} size={18} />
-            </button>
+        onClick={btnToggleNavbar}
+        className="w-9 h-9 hidden md:flex items-center justify-center rounded-full border transition bg-restro-green-light dark:bg-restro-gray hover:bg-gray-200 dark:hover:bg-restro-button-hover text-gray-500 fixed bottom-4 left-[17.5rem] -translate-x-1/2 dark:border-restro-border-green"
+      >
+        <IconChevronLeft stroke={iconStroke} size={18} />
+      </button>
     </div>
   );
 }
